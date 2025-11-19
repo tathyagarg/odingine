@@ -8,6 +8,9 @@ import "vendor:glfw"
 import rendering "../engine/rendering"
 import "../utils"
 
+WINDOW_WIDTH :: 800
+WINDOW_HEIGHT :: 600
+
 main :: proc() {
 	fmt.println("Starting Odin OpenGL Application")
 
@@ -18,7 +21,7 @@ main :: proc() {
 
 	fmt.println("Creating window...")
 
-	window := glfw.CreateWindow(800, 600, "Odin OpenGL Window", nil, nil)
+	window := glfw.CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Odin OpenGL Window", nil, nil)
 	if window == nil {
 		fmt.println("Failed to create GLFW window")
 		utils.terminate()
@@ -33,6 +36,7 @@ main :: proc() {
 	fmt.println("Initializing 2D rendering context...")
 
 	render_context := rendering.initialize_render2d()
+	defer rendering.cleanup_render2d(&render_context)
 
 	fmt.println("Entering main loop...")
 
@@ -45,8 +49,6 @@ main :: proc() {
 		glfw.SwapBuffers(window)
 		glfw.PollEvents()
 	}
-
-	rendering.cleanup_render2d(&render_context)
 
 	glfw.DestroyWindow(window)
 	glfw.Terminate()

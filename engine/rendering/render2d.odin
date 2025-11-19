@@ -1,42 +1,36 @@
 package render2d
 
 import "core:fmt"
+import "core:os"
 
 import gl "vendor:OpenGL"
 
 import "../../utils"
 import "internal"
 
-vertex_shader_source: cstring = `#version 330 core
-layout (location = 0) in vec3 aPos;
-void main()
-{
-   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
-}
-`
-
-fragment_shader_source: cstring = `#version 330 core
-out vec4 FragColor;
-void main()
-{
-   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-}
-`
-
 Render2DContext :: struct {
 	vao:            u32,
 	shader_program: u32,
 }
 
-render_triangle :: proc() -> (u32, u32) {
+BASIC_TRIANGLE_VERTEX_SHADER_SOURCE :: "resources/shaders/01_basic/triangle.vert"
+BASIC_TRIANGLE_FRAGMENT_SHADER_SOURCE :: "resources/shaders/01_basic/triangle.frag"
+
+render_triangle :: proc(
+	vertex_shader_source: ^cstring,
+	fragment_shader_source: ^cstring,
+) -> (
+	u32,
+	u32,
+) {
 	vertex_shader := gl.CreateShader(gl.VERTEX_SHADER)
-	gl.ShaderSource(vertex_shader, 1, &vertex_shader_source, nil)
+	gl.ShaderSource(vertex_shader, 1, vertex_shader_source, nil)
 	gl.CompileShader(vertex_shader)
 
 	if !internal.verify_shader_status(vertex_shader) do utils.terminate("Vertex shader compilation failed.")
 
 	fragment_shader := gl.CreateShader(gl.FRAGMENT_SHADER)
-	gl.ShaderSource(fragment_shader, 1, &fragment_shader_source, nil)
+	gl.ShaderSource(fragment_shader, 1, fragment_shader_source, nil)
 	gl.CompileShader(fragment_shader)
 
 	if !internal.verify_shader_status(fragment_shader) do utils.terminate("Fragment shader compilation failed.")
@@ -85,7 +79,24 @@ render_triangle :: proc() -> (u32, u32) {
 }
 
 initialize_render2d :: proc() -> Render2DContext {
-	vao, shader_program := render_triangle()
+	raw_vertex_shader_source, vert_success := os.read_entire_file_from_filename(
+		BASIC_TRIANGLE_VERTEX_SHADER_SOURCE,
+	)
+	if !vert_success {
+		utils.terminate("Failed to read vertex shader file.")
+	}
+
+	raw_fragment_shader_source, frag_success := os.read_entire_file_from_filename(
+		BASIC_TRIANGLE_FRAGMENT_SHADER_SOURCE,
+	)
+	if !frag_success {
+		utils.terminate("Failed to read fragment shader file.")
+	}
+
+	vertex_shader_source := cstring(&raw_vertex_shader_source[0])
+	fragment_shader_source := cstring(&raw_fragment_shader_source[0])
+
+	vao, shader_program := render_triangle(&vertex_shader_source, &fragment_shader_source)
 	return Render2DContext{vao = vao, shader_program = shader_program}
 }
 
