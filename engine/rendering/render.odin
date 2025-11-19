@@ -1,19 +1,25 @@
-package render2d
+package rendering
 
 import "core:fmt"
 
 import gl "vendor:OpenGL"
 
-import rm ".."
 import "../../utils"
+import render_sprite "../rendering/sprite"
+import rm "../resource_manager"
 
 RendererContext :: struct {
-	vao:            u32,
-	shader_program: rm.Shader,
+	manager: ^rm.ResourceManager,
+	sprite:  render_sprite.Sprite,
 }
 
 BASIC_TRIANGLE_VERTEX_SHADER_SOURCE :: "resources/shaders/01_basic/triangle.vert"
 BASIC_TRIANGLE_FRAGMENT_SHADER_SOURCE :: "resources/shaders/01_basic/triangle.frag"
+
+SPRITE_VERTEX_SHADER_SOURCE :: "resources/shaders/02_sprite/sprite.vert"
+SPRITE_FRAGMENT_SHADER_SOURCE :: "resources/shaders/02_sprite/sprite.frag"
+
+ROBOT_TEXTURE_PATH :: "resources/textures/robot.png"
 
 render_triangle :: proc() -> u32 {
 	vertices := [?]f32{0.0, 0.5, 0.0, -0.5, -0.5, 0.0, 0.5, -0.5, 0.0}
@@ -44,30 +50,54 @@ render_triangle :: proc() -> u32 {
 }
 
 initialize_renderer :: proc(manager: ^rm.ResourceManager) -> RendererContext {
-	vao := render_triangle()
+	rm.load_shader(manager, "sprite", SPRITE_VERTEX_SHADER_SOURCE, SPRITE_FRAGMENT_SHADER_SOURCE)
 
-	shader_program := rm.load_shader(
-		manager,
-		"BasicTriangleShader",
-		BASIC_TRIANGLE_VERTEX_SHADER_SOURCE,
-		BASIC_TRIANGLE_FRAGMENT_SHADER_SOURCE,
-	)
+	projection := utils.orthographic_projection_matrix(0.0, 800.0, 600.0, 0.0, -1.0, 1.0)
 
-	return RendererContext{vao = vao, shader_program = shader_program}
+	shader := rm.get_shader(manager, "sprite")
+	rm.use_shader(&shader)
+	rm.set_integer("image", 0, &shader)
+	rm.set_matrix4("projection", &projection, &shader)
+
+	sprite := render_sprite.initialize_sprite(manager, &shader)
+	rm.load_texture(manager, "robot", ROBOT_TEXTURE_PATH, true)
+
+	// vao := render_triangle()
+
+	// shader_program := rm.load_shader(
+	// 	manager,
+	// 	"BasicTriangleShader",
+	// 	BASIC_TRIANGLE_VERTEX_SHADER_SOURCE,
+	// 	BASIC_TRIANGLE_FRAGMENT_SHADER_SOURCE,
+	// )
+
+	return RendererContext{manager = manager, sprite = sprite}
 }
 
 render :: proc(ctx: ^RendererContext) {
 	gl.ClearColor(0.2, 0.3, 0.3, 1.0)
 	gl.Clear(gl.COLOR_BUFFER_BIT)
 
-	gl.UseProgram(ctx.shader_program.id)
-	gl.BindVertexArray(ctx.vao)
-	gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, nil)
+	// gl.BindVertexArray(ctx.vao)
+	// gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, nil)
+
+	texture := rm.get_texture(ctx.manager, "robot")
+
+	fmt.printfln("Rendering sprite with texture ID: %d", texture.id)
+
+	render_sprite.draw_sprite(
+		ctx.manager,
+		&ctx.sprite,
+		&texture,
+		[2]f32{200.0, 200.0},
+		[2]f32{400.0, 400.0},
+		0.0,
+	)
 }
 
 cleanup_renderer :: proc(ctx: ^RendererContext) {
-	gl.DeleteVertexArrays(1, &ctx.vao)
-	gl.DeleteProgram(ctx.shader_program.id)
+	// gl.DeleteVertexArrays(1, &ctx.vao)
+	// gl.DeleteProgram(ctx.shader_program.id)
 }
 
 get_scissor_bounds :: proc(

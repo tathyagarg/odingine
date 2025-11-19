@@ -5,8 +5,8 @@ import "core:fmt"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 
-import rm "../engine/"
 import rendering "../engine/rendering"
+import rm "../engine/resource_manager"
 import "../utils"
 
 WINDOW_WIDTH :: 1200
@@ -65,6 +65,9 @@ main :: proc() {
 	x, y, width, height := rendering.get_scissor_bounds(ENVIRONMENT, w, h)
 
 	glfw.SetKeyCallback(window, key_callback)
+
+	// shader := rm.get_shader(&manager, "BasicTriangleShader")
+	// rm.use_shader(&shader)
 
 	for !glfw.WindowShouldClose(window) {
 		gl.Scissor(x, y, width, height)
