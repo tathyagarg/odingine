@@ -5,11 +5,28 @@ import "core:fmt"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 
+import rm "../engine/"
 import rendering "../engine/rendering"
 import "../utils"
 
-WINDOW_WIDTH :: 800
-WINDOW_HEIGHT :: 600
+WINDOW_WIDTH :: 1200
+WINDOW_HEIGHT :: 800
+
+ENVIRONMENT :: utils.Environment.Development
+
+key_callback :: proc "c" (
+	window: glfw.WindowHandle,
+	key: i32,
+	scancode: i32,
+	action: i32,
+	mods: i32,
+) {
+	if (ENVIRONMENT == .Development) {
+		if key == glfw.KEY_ESCAPE && action == glfw.PRESS {
+			glfw.SetWindowShouldClose(window, true)
+		}
+	}
+}
 
 main :: proc() {
 	fmt.println("Starting Odin OpenGL Application")
@@ -35,16 +52,24 @@ main :: proc() {
 
 	fmt.println("Initializing 2D rendering context...")
 
-	render_context := rendering.initialize_render2d()
-	defer rendering.cleanup_render2d(&render_context)
+	manager := rm.initialize_resource_manager()
+
+	render_context := rendering.initialize_renderer(&manager)
+	defer rendering.cleanup_renderer(&render_context)
 
 	fmt.println("Entering main loop...")
 
-	for !glfw.WindowShouldClose(window) {
-		gl.ClearColor(0.2, 0.3, 0.3, 1.0)
-		gl.Clear(gl.COLOR_BUFFER_BIT)
+	gl.Enable(gl.SCISSOR_TEST)
+	defer gl.Disable(gl.SCISSOR_TEST)
 
-		rendering.render2d(&render_context)
+	x, y, width, height := rendering.get_scissor_bounds(ENVIRONMENT, w, h)
+
+	glfw.SetKeyCallback(window, key_callback)
+
+	for !glfw.WindowShouldClose(window) {
+		gl.Scissor(x, y, width, height)
+
+		rendering.render(&render_context)
 
 		glfw.SwapBuffers(window)
 		glfw.PollEvents()
