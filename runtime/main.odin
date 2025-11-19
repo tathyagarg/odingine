@@ -60,14 +60,13 @@ main :: proc() {
 	fmt.println("Entering main loop...")
 
 	gl.Enable(gl.SCISSOR_TEST)
-	defer gl.Disable(gl.SCISSOR_TEST)
+
+	gl.Enable(gl.BLEND)
+	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
 	x, y, width, height := rendering.get_scissor_bounds(ENVIRONMENT, w, h)
 
 	glfw.SetKeyCallback(window, key_callback)
-
-	// shader := rm.get_shader(&manager, "BasicTriangleShader")
-	// rm.use_shader(&shader)
 
 	for !glfw.WindowShouldClose(window) {
 		gl.Scissor(x, y, width, height)

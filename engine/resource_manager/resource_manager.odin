@@ -90,9 +90,6 @@ load_shader_from_file :: proc(
 	vertex_source := strings.clone_to_cstring(string(vertex_code))
 	fragment_source := strings.clone_to_cstring(string(fragment_code))
 
-	fmt.printfln("Vertex Shader Source:\n%s\n", vertex_path)
-	fmt.printfln("Fragment Shader Source:\n%s\n", fragment_path)
-
 	shader: Shader
 
 	if (geometry_path != "") {
@@ -160,12 +157,8 @@ use_shader :: proc(shader: ^Shader) {
 }
 
 set_matrix4 :: proc(name: string, m: ^matrix[4, 4]f32, shader: ^Shader) {
-	gl.UniformMatrix4fv(
-		gl.GetUniformLocation(shader.id, strings.clone_to_cstring(name)),
-		1,
-		gl.FALSE,
-		raw_data(m),
-	)
+	location := gl.GetUniformLocation(shader.id, strings.clone_to_cstring(name))
+	gl.UniformMatrix4fv(location, 1, gl.FALSE, raw_data(m))
 }
 
 set_vector3 :: proc(name: string, v: [3]f32, shader: ^Shader) {
@@ -178,7 +171,8 @@ set_vector3 :: proc(name: string, v: [3]f32, shader: ^Shader) {
 }
 
 set_integer :: proc(name: string, value: i32, shader: ^Shader) {
-	gl.Uniform1i(gl.GetUniformLocation(shader.id, strings.clone_to_cstring(name)), value)
+	location := gl.GetUniformLocation(shader.id, strings.clone_to_cstring(name))
+	gl.Uniform1i(location, value)
 }
 
 generate_texture :: proc(texture: ^Texture, width: i32, height: i32, data: [^]u8) {
@@ -210,7 +204,7 @@ load_texture :: proc(
 	rm: ^ResourceManager,
 	name: string,
 	file: string,
-	alpha: bool = false,
+	alpha: bool = true,
 ) -> Texture {
 	if tex_id, exists := rm.textures[name]; exists {
 		return rm.textures[name]
@@ -234,8 +228,8 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> Texture {
 	texture: Texture = Texture {
 		width           = 0,
 		height          = 0,
-		internal_format = gl.RGB,
-		image_format    = gl.RGB,
+		internal_format = gl.RGBA,
+		image_format    = gl.RGBA,
 		wrap_s          = gl.REPEAT,
 		wrap_t          = gl.REPEAT,
 		filter_min      = gl.LINEAR,
@@ -254,7 +248,7 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> Texture {
 
 	width, height, nrChannels: i32
 
-	data := stb.load(file, &width, &height, &nrChannels, 0)
+	data := stb.load(file, &width, &height, &nrChannels, 4)
 
 	generate_texture(&texture, width, height, data)
 	stb.image_free(data)

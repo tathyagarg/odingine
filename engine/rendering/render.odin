@@ -19,7 +19,7 @@ BASIC_TRIANGLE_FRAGMENT_SHADER_SOURCE :: "resources/shaders/01_basic/triangle.fr
 SPRITE_VERTEX_SHADER_SOURCE :: "resources/shaders/02_sprite/sprite.vert"
 SPRITE_FRAGMENT_SHADER_SOURCE :: "resources/shaders/02_sprite/sprite.frag"
 
-ROBOT_TEXTURE_PATH :: "resources/textures/robot.png"
+CHARACTER_TEXTURE_PATH :: "resources/textures/character.png"
 
 render_triangle :: proc() -> u32 {
 	vertices := [?]f32{0.0, 0.5, 0.0, -0.5, -0.5, 0.0, 0.5, -0.5, 0.0}
@@ -56,20 +56,11 @@ initialize_renderer :: proc(manager: ^rm.ResourceManager) -> RendererContext {
 
 	shader := rm.get_shader(manager, "sprite")
 	rm.use_shader(&shader)
-	rm.set_integer("image", 0, &shader)
 	rm.set_matrix4("projection", &projection, &shader)
+	rm.set_integer("image", 0, &shader)
 
 	sprite := render_sprite.initialize_sprite(manager, &shader)
-	rm.load_texture(manager, "robot", ROBOT_TEXTURE_PATH, true)
-
-	// vao := render_triangle()
-
-	// shader_program := rm.load_shader(
-	// 	manager,
-	// 	"BasicTriangleShader",
-	// 	BASIC_TRIANGLE_VERTEX_SHADER_SOURCE,
-	// 	BASIC_TRIANGLE_FRAGMENT_SHADER_SOURCE,
-	// )
+	rm.load_texture(manager, "character", CHARACTER_TEXTURE_PATH, true)
 
 	return RendererContext{manager = manager, sprite = sprite}
 }
@@ -78,19 +69,14 @@ render :: proc(ctx: ^RendererContext) {
 	gl.ClearColor(0.2, 0.3, 0.3, 1.0)
 	gl.Clear(gl.COLOR_BUFFER_BIT)
 
-	// gl.BindVertexArray(ctx.vao)
-	// gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, nil)
-
-	texture := rm.get_texture(ctx.manager, "robot")
-
-	fmt.printfln("Rendering sprite with texture ID: %d", texture.id)
+	texture := rm.get_texture(ctx.manager, "character")
 
 	render_sprite.draw_sprite(
 		ctx.manager,
 		&ctx.sprite,
 		&texture,
 		[2]f32{200.0, 200.0},
-		[2]f32{400.0, 400.0},
+		[2]f32{20.0, 24.0},
 		0.0,
 	)
 }
