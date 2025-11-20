@@ -2,9 +2,13 @@ package main
 
 import "core:fmt"
 
+import imgui "../third_party/imgui"
+import imgui_glfw "../third_party/imgui/imgui_impl_glfw"
+import imgui_opengl3 "../third_party/imgui/imgui_impl_opengl3"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 
+import gui "../engine/gui"
 import rendering "../engine/rendering"
 import rm "../engine/resource_manager"
 import "../utils"
@@ -50,7 +54,6 @@ main :: proc() {
 	glfw.MakeContextCurrent(window)
 	gl.load_up_to(3, 3, glfw.gl_set_proc_address)
 	w, h := glfw.GetFramebufferSize(window)
-	gl.Viewport(0, 0, w, h)
 
 	fmt.println("Initializing 2D rendering context...")
 
@@ -132,6 +135,15 @@ main :: proc() {
 
 	rm.load_atlas(&manager, tileset, TILESET_TEXTURE_PATH, 32, 32, 62)
 
+	imgui.CreateContext()
+	imgui.StyleColorsDark()
+
+	imgui_glfw.InitForOpenGL(window, true)
+	defer imgui_glfw.Shutdown()
+
+	imgui_opengl3.Init("#version 330")
+	defer imgui_opengl3.Shutdown()
+
 	fmt.println("Entering main loop...")
 
 	gl.Enable(gl.SCISSOR_TEST)
@@ -143,11 +155,28 @@ main :: proc() {
 
 	glfw.SetKeyCallback(window, key_callback)
 
+	imgui.SetNextWindowPos(
+		imgui.Vec2{f32(0), f32(0)},
+		imgui.Cond.Always,
+		imgui.Vec2{f32(0), f32(0)},
+	)
+
 	for !glfw.WindowShouldClose(window) {
 		gl.Viewport(x, y, width, height)
 		gl.Scissor(x, y, width, height)
-
 		rendering.render(&render_context)
+
+		gl.Viewport(0, 0, w, h)
+
+		imgui_glfw.NewFrame()
+		imgui_opengl3.NewFrame()
+		imgui.NewFrame()
+
+		gui.show_gui(WINDOW_WIDTH, WINDOW_HEIGHT)
+
+		imgui.Render()
+
+		imgui_opengl3.RenderDrawData(imgui.GetDrawData())
 
 		glfw.SwapBuffers(window)
 		glfw.PollEvents()
