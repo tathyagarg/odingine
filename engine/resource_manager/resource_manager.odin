@@ -232,8 +232,8 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> Texture {
 		image_format    = gl.RGBA,
 		wrap_s          = gl.REPEAT,
 		wrap_t          = gl.REPEAT,
-		filter_min      = gl.LINEAR,
-		filter_max      = gl.LINEAR,
+		filter_min      = gl.NEAREST,
+		filter_max      = gl.NEAREST,
 	}
 
 	gl.GenTextures(1, &texture.id)
@@ -254,4 +254,84 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> Texture {
 	stb.image_free(data)
 
 	return texture
+}
+
+load_atlas :: proc(
+	rm: ^ResourceManager,
+	names: []string,
+	file: string,
+	tile_width: i32,
+	tile_height: i32,
+	count: i32,
+) -> []Texture {
+	textures := load_textures_from_atlas(file, tile_width, tile_height, count)
+
+	for i: int = 0; i < len(names) && i < len(textures); i += 1 {
+		rm.textures[names[i]] = textures[i]
+	}
+	return textures
+}
+
+load_textures_from_atlas :: proc(
+	file: string,
+	tile_width: i32,
+	tile_height: i32,
+	count: i32,
+) -> []Texture {
+	textures: []Texture = make([]Texture, count)
+
+	image_data: [^]u8
+	width: i32
+	height: i32
+	nrChannels: i32
+
+	count_tiles: i32 = 0
+
+	image_data = stb.load(strings.clone_to_cstring(file), &width, &height, &nrChannels, 4)
+	if image_data == nil {
+		fmt.eprintfln("Failed to load texture atlas: %s\n", file)
+		return textures
+	}
+
+	tiles_x := width / tile_width
+	tiles_y := height / tile_height
+
+	for y: i32 = 0; y < tiles_y; y += 1 {
+		for x: i32 = 0; x < tiles_x; x += 1 {
+			if count_tiles >= count {
+				break
+			}
+
+			tile_data: [^]u8 = raw_data(make([]u8, tile_width * tile_height * 4)[:])
+
+			for row: i32 = 0; row < tile_height; row += 1 {
+				src_start := ((y * tile_height + row) * width + (x * tile_width)) * 4
+				dest_start := row * tile_width * 4
+				copy(
+					tile_data[dest_start:dest_start + tile_width * 4],
+					image_data[src_start:src_start + tile_width * 4],
+				)
+			}
+
+			texture: Texture = Texture {
+				width           = tile_width,
+				height          = tile_height,
+				internal_format = gl.RGBA,
+				image_format    = gl.RGBA,
+				wrap_s          = gl.REPEAT,
+				wrap_t          = gl.REPEAT,
+				filter_min      = gl.NEAREST,
+				filter_max      = gl.NEAREST,
+			}
+
+			gl.GenTextures(1, &texture.id)
+			generate_texture(&texture, tile_width, tile_height, tile_data)
+			textures[count_tiles] = texture
+
+			count_tiles += 1
+		}
+	}
+
+	stb.image_free(image_data)
+	return textures
 }

@@ -8,9 +8,17 @@ import "../../utils"
 import render_sprite "../rendering/sprite"
 import rm "../resource_manager"
 
+RenderObject :: struct {
+	sprite:   render_sprite.Sprite,
+	texture:  rm.Texture,
+	position: [2]f32,
+	size:     [2]f32,
+	rotation: f32,
+}
+
 RendererContext :: struct {
 	manager: ^rm.ResourceManager,
-	sprite:  render_sprite.Sprite,
+	objects: [dynamic]RenderObject,
 }
 
 BASIC_TRIANGLE_VERTEX_SHADER_SOURCE :: "resources/shaders/01_basic/triangle.vert"
@@ -59,32 +67,27 @@ initialize_renderer :: proc(manager: ^rm.ResourceManager) -> RendererContext {
 	rm.set_matrix4("projection", &projection, &shader)
 	rm.set_integer("image", 0, &shader)
 
-	sprite := render_sprite.initialize_sprite(manager, &shader)
-	rm.load_texture(manager, "character", CHARACTER_TEXTURE_PATH, true)
-
-	return RendererContext{manager = manager, sprite = sprite}
+	objects := [dynamic]RenderObject{}
+	return RendererContext{manager = manager, objects = objects}
 }
 
 render :: proc(ctx: ^RendererContext) {
 	gl.ClearColor(0.2, 0.3, 0.3, 1.0)
 	gl.Clear(gl.COLOR_BUFFER_BIT)
 
-	texture := rm.get_texture(ctx.manager, "character")
-
-	render_sprite.draw_sprite(
-		ctx.manager,
-		&ctx.sprite,
-		&texture,
-		[2]f32{200.0, 200.0},
-		[2]f32{20.0, 24.0},
-		0.0,
-	)
+	for &object in ctx.objects {
+		render_sprite.draw_sprite(
+			ctx.manager,
+			&object.sprite,
+			&object.texture,
+			object.position,
+			object.size,
+			object.rotation,
+		)
+	}
 }
 
-cleanup_renderer :: proc(ctx: ^RendererContext) {
-	// gl.DeleteVertexArrays(1, &ctx.vao)
-	// gl.DeleteProgram(ctx.shader_program.id)
-}
+cleanup_renderer :: proc(ctx: ^RendererContext) {}
 
 get_scissor_bounds :: proc(
 	env: utils.Environment,
@@ -97,7 +100,7 @@ get_scissor_bounds :: proc(
 	i32,
 ) {
 	if env == .Development {
-		return width / 4, height / 3, width / 2, 2 * height / 3
+		return width / 6, height / 3, 2 * width / 3, 2 * height / 3
 	} else {
 		return 0, 0, width, height
 	}

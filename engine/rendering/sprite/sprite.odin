@@ -1,6 +1,5 @@
 package render_sprite
 
-import "core:fmt"
 import "core:math/linalg"
 
 import gl "vendor:OpenGL"
