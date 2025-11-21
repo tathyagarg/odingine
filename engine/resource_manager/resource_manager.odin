@@ -233,22 +233,8 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> Texture {
 	return texture
 }
 
-load_atlas :: proc(
-	rm: ^ResourceManager,
-	atlas: atl.Atlas,
-	// names: []string,
-	// file: string,
-	// tile_width: i32,
-	// tile_height: i32,
-	// count: i32,
-) -> map[string]Texture {
-	textures := load_textures_from_atlas(
-		atlas.header.filename,
-		i32(atlas.header.sprite_size[0]),
-		i32(atlas.header.sprite_size[1]),
-		i32(atlas.header.sprite_count),
-		atlas.tiles,
-	)
+load_atlas :: proc(rm: ^ResourceManager, atlas: atl.Atlas) -> map[string]Texture {
+	textures := load_textures_from_atlas(atlas)
 
 	for name, _ in atlas.tiles {
 		rm.textures[name] = textures[name]
@@ -257,25 +243,20 @@ load_atlas :: proc(
 	return textures
 }
 
-load_textures_from_atlas :: proc(
-	file: cstring,
-	tile_width: i32,
-	tile_height: i32,
-	count: i32,
-	mapping: map[string]atl.Tile,
-) -> map[string]Texture {
-	textures: map[string]Texture = make(map[string]Texture, count)
+load_textures_from_atlas :: proc(atlas: atl.Atlas) -> map[string]Texture {
+	textures: map[string]Texture = make(map[string]Texture, atlas.header.sprite_count)
+
+	tile_width := i32(atlas.header.sprite_size[0])
+	tile_height := i32(atlas.header.sprite_size[1])
 
 	image_data: [^]u8
 	width: i32
 	height: i32
 	nrChannels: i32
 
-	count_tiles: i32 = 0
-
-	image_data = stb.load(file, &width, &height, &nrChannels, 4)
+	image_data = stb.load(atlas.header.filename, &width, &height, &nrChannels, 4)
 	if image_data == nil {
-		fmt.eprintfln("Failed to load texture atlas: %s\n", file)
+		fmt.eprintfln("Failed to load texture atlas: %s\n", atlas.header.filename)
 		return textures
 	}
 
@@ -284,7 +265,7 @@ load_textures_from_atlas :: proc(
 
 	for y: i32 = 0; y < tiles_y; y += 1 {
 		for x: i32 = 0; x < tiles_x; x += 1 {
-			if count_tiles >= count {
+			if (y * tiles_x) + x >= i32(atlas.header.sprite_count) {
 				break
 			}
 
@@ -314,15 +295,13 @@ load_textures_from_atlas :: proc(
 			generate_texture(&texture, tile_width, tile_height, tile_data)
 
 			// Find the name corresponding to this tile index
-			for name, tile in mapping {
+			for name, tile in atlas.tiles {
 				if i32(tile.position[0]) / tile_width == x &&
 				   i32(tile.position[1]) / tile_height == y {
 					textures[name] = texture
 					break
 				}
 			}
-
-			count_tiles += 1
 		}
 	}
 

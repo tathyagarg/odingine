@@ -51,7 +51,13 @@ main :: proc() {
 
 	fmt.println("Creating window...")
 
-	window := glfw.CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Odin OpenGL Window", nil, nil)
+	window := glfw.CreateWindow(
+		WINDOW_WIDTH,
+		WINDOW_HEIGHT,
+		"Odingine" if (ENVIRONMENT == .Development) else "game",
+		nil,
+		nil,
+	)
 	if window == nil {
 		fmt.println("Failed to create GLFW window")
 		utils.terminate()
@@ -93,26 +99,12 @@ main :: proc() {
 
 	rm.load_atlas(&manager, atlas)
 
-	// rm.load_texture(&manager, "grass_1", TILESET_TEXTURE_PATH + "/tileset_grass.png")
-
-	// append(
-	// 	&render_context.objects,
-	// 	rendering.RenderObject {
-	// 		position = {f32(100), f32(100)},
-	// 		size = {f32(64), f32(64)},
-	// 		rotation = f32(0),
-	// 		texture = rm.get_texture(&manager, "grass_1"),
-	// 	},
-	// )
-
 	sprite_shader := rm.get_shader(&manager, "sprite")
 	for tileset_id, i in atlas.presets[0].tile_ids {
 		texture: rm.Texture
 		for name, t in atlas.tiles {
 			if t.id == tileset_id {
-				fmt.println("Loading texture:", name)
 				texture = rm.get_texture(&manager, name)
-				fmt.println("Texture loaded:", texture)
 				break
 			}
 		}
@@ -134,8 +126,6 @@ main :: proc() {
 			},
 		)
 	}
-
-	fmt.println(render_context.objects)
 
 	imgui.CreateContext()
 	imgui.StyleColorsDark()
