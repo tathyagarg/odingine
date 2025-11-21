@@ -1,5 +1,6 @@
 package main
 
+import "base:runtime"
 import "core:fmt"
 
 import imgui "../third_party/imgui"
@@ -14,11 +15,12 @@ import rendering "../engine/rendering"
 import sprites "../engine/rendering/sprite"
 import rm "../engine/resource_manager"
 import "../utils"
+import "../utils/globals"
 
-WINDOW_WIDTH :: 1200
-WINDOW_HEIGHT :: 800
+WINDOW_WIDTH :: 1600
+WINDOW_HEIGHT :: 900
 
-ENVIRONMENT :: utils.Environment.Development
+ENVIRONMENT :: globals.Environment.Development
 
 TILESET_TEXTURE_PATH :: "resources/atlases/01_grass"
 
@@ -34,22 +36,32 @@ key_callback :: proc "c" (
 	action: i32,
 	mods: i32,
 ) {
+	imgui_glfw.KeyCallback(window, key, scancode, action, mods)
+
+	state := (^utils.DevelopmentState)(glfw.GetWindowUserPointer(window))
 	when (ENVIRONMENT == .Development) {
 		if key == glfw.KEY_ESCAPE && action == glfw.PRESS {
-			glfw.SetWindowShouldClose(window, true)
+			if state.game_focused {
+				state.game_focused = false
+			} else {
+				glfw.SetWindowShouldClose(window, true)
+			}
+		}
+	}
+
+	if state.game_focused {
+		if action == glfw.PRESS {
+			context = runtime.default_context()
+			fmt.println("Key pressed: ", key)
 		}
 	}
 }
 
 main :: proc() {
-	fmt.println("Starting Odin OpenGL Application")
-
 	glfw.Init()
 	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, 3)
 	glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, 3)
 	glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-
-	fmt.println("Creating window...")
 
 	window := glfw.CreateWindow(
 		WINDOW_WIDTH,
@@ -67,8 +79,6 @@ main :: proc() {
 	glfw.MakeContextCurrent(window)
 	gl.load_up_to(3, 3, glfw.gl_set_proc_address)
 	w, h := glfw.GetFramebufferSize(window)
-
-	fmt.println("Initializing 2D rendering context...")
 
 	manager := rm.initialize_resource_manager()
 
@@ -89,6 +99,29 @@ main :: proc() {
 	)
 	defer rendering.cleanup_renderer(&render_context)
 
+	state := utils.DevelopmentState {
+		game_focused   = false,
+		atlases        = map[string]^atl.Atlas{},
+		event_handlers = map[string]proc(state: ^utils.DevelopmentState){},
+		manager        = &manager,
+		render_context = &render_context,
+	}
+
+	state.event_handlers["save_atlas"] = proc(state: ^utils.DevelopmentState) {
+		atl.save_atlas(state.atlases["main"])
+		rm.update_textures_from_atlas(state.manager, state.atlases["main"])
+
+		for &object in state.render_context.objects {
+			if object.texture.name == "" {
+				continue
+			}
+			object.texture = rm.get_texture(state.manager, object.texture.name)
+		}
+	}
+
+	glfw.SetWindowUserPointer(window, &state)
+
+
 	res := atl.parse(TILESET_TEXTURE_PATH)
 	if res == nil {
 		fmt.println("Failed to initialize texture atlas")
@@ -100,7 +133,10 @@ main :: proc() {
 	rm.load_atlas(&manager, atlas)
 
 	sprite_shader := rm.get_shader(&manager, "sprite")
-	for tileset_id, i in atlas.presets[0].tile_ids {
+
+	fmt.println(atlas)
+
+	for tileset_id, i in atlas.presets["showcase_1"].tile_ids {
 		texture: rm.Texture
 		for name, t in atlas.tiles {
 			if t.id == tileset_id {
@@ -114,8 +150,16 @@ main :: proc() {
 			rendering.RenderObject {
 				sprite = sprites.initialize_sprite(&manager, &sprite_shader),
 				position = {
-					f32(TILE_SCALE * (i % atlas.presets[0].size[0]) * atlas.header.sprite_size[0]),
-					f32(TILE_SCALE * (i / atlas.presets[0].size[0]) * atlas.header.sprite_size[1]),
+					f32(
+						TILE_SCALE *
+						(i % atlas.presets["showcase_1"].size[0]) *
+						atlas.header.sprite_size[0],
+					),
+					f32(
+						TILE_SCALE *
+						(i / atlas.presets["showcase_1"].size[0]) *
+						atlas.header.sprite_size[1],
+					),
 				},
 				size = {
 					f32(TILE_SCALE * atlas.header.sprite_size[0]),
@@ -126,6 +170,8 @@ main :: proc() {
 			},
 		)
 	}
+
+	state.atlases["main"] = &atlas
 
 	imgui.CreateContext()
 	imgui.StyleColorsDark()
@@ -165,7 +211,7 @@ main :: proc() {
 			imgui_opengl3.NewFrame()
 			imgui.NewFrame()
 
-			gui.show_gui(WINDOW_WIDTH, WINDOW_HEIGHT)
+			gui.show_gui(WINDOW_WIDTH, WINDOW_HEIGHT, window)
 
 			imgui.Render()
 

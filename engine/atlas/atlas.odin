@@ -24,24 +24,25 @@ Header :: struct {
 }
 
 Atlas :: struct {
+	source:  cstring,
 	header:  Header,
 	tiles:   map[string]Tile,
-	presets: []Preset,
+	presets: map[string]Preset,
 }
 
-load_file :: proc(path: string) -> Maybe(string) {
+load_file :: proc(path: string) -> (string, string, bool) {
 	target: string = ""
 	if os.is_dir(path) {
 		handle, open_err := os.open(path)
 		if open_err != nil {
 			fmt.println("Error opening directory: ", open_err)
-			return nil
+			return "", "", false
 		}
 
 		files, read_err := os.read_dir(handle, 1024)
 		if read_err != nil {
 			fmt.println("Error reading directory: ", read_err)
-			return nil
+			return "", "", false
 		}
 
 		for file in files {
@@ -53,7 +54,7 @@ load_file :: proc(path: string) -> Maybe(string) {
 
 		if target == "" {
 			fmt.println("No atlas file found in directory: ", path)
-			return nil
+			return "", "", false
 		}
 	} else {
 		target = path
@@ -64,10 +65,10 @@ load_file :: proc(path: string) -> Maybe(string) {
 	data, read_err := os.read_entire_file_from_filename_or_err(full_path)
 	if read_err != nil {
 		fmt.println("Error reading atlas file: ", read_err)
-		return nil
+		return "", "", false
 	}
 
-	return string(data)
+	return string(data), full_path, true
 }
 
 parse_header :: proc(path: string, data: string) -> Maybe(Header) {
@@ -97,7 +98,7 @@ parse_header :: proc(path: string, data: string) -> Maybe(Header) {
 
 		switch key {
 		case "src":
-			header.filename = strings.clone_to_cstring(filepath.join({path, value}))
+			header.filename = strings.clone_to_cstring(value)
 		case "count":
 			count, ok := strconv.parse_int(value)
 			if !ok {
@@ -271,9 +272,9 @@ parse_tiles :: proc(data: string, header: Header) -> Maybe(map[string]Tile) {
 	return tiles
 }
 
-parse_presets :: proc(data: string) -> Maybe([]Preset) {
+parse_presets :: proc(data: string) -> Maybe(map[string]Preset) {
 	lines := strings.split(data, "\n")
-	presets := [dynamic]Preset{}
+	presets := map[string]Preset{}
 
 	if len(lines) < 2 {
 		fmt.println("Invalid presets format")
@@ -288,7 +289,8 @@ parse_presets :: proc(data: string) -> Maybe([]Preset) {
 
 	i := 1
 	for i < len(lines) {
-		line := strings.trim(lines[i], " :")
+		name := strings.trim(lines[i], " :")
+
 		preset := Preset {
 			size     = [2]int{0, 0},
 			tile_ids = []int{},
@@ -346,26 +348,28 @@ parse_presets :: proc(data: string) -> Maybe([]Preset) {
 		}
 
 		if preset.size[0] != 0 && preset.size[1] != 0 {
-			append(&presets, preset)
+			presets[name] = preset
 		}
 	}
 
-	return presets[:]
+	return presets
 }
 
 parse :: proc(path: string) -> Maybe(Atlas) {
-	data := load_file(path)
-	if data == nil {
+	data, full_path, ok := load_file(path)
+	if !ok {
 		return nil
 	}
 
-	parts := strings.split(data.?, "\n\n")
+	parts := strings.split(data, "\n\n")
 	if len(parts) < 2 {
 		fmt.println("Invalid atlas file format")
 		return nil
 	}
 
-	atlas := Atlas{}
+	atlas := Atlas {
+		source = strings.clone_to_cstring(full_path),
+	}
 
 	for part in parts {
 		if strings.starts_with(part, "header") {
@@ -402,4 +406,79 @@ parse :: proc(path: string) -> Maybe(Atlas) {
 	}
 
 	return atlas
+}
+
+save_atlas :: proc(atlas: ^Atlas) {
+	if atlas == nil {
+		fmt.println("Cannot save a nil atlas")
+		return
+	}
+
+	fmt.println("Saving atlas to: ", string(atlas.source))
+	file, err := os.open(string(atlas.source), os.O_RDWR)
+	if err != nil {
+		fmt.println("Error creating atlas file: ", err)
+		return
+	}
+
+	content := ""
+
+	content = strings.concatenate(
+		{
+			content,
+			fmt.aprintf(
+				"header:\n  src: %s\n  count: %d\n  sprite_size: %d %d\n  atlas_size: %d %d\n\n",
+				filepath.base(string(atlas.header.filename)),
+				atlas.header.sprite_count,
+				atlas.header.sprite_size[0],
+				atlas.header.sprite_size[1],
+				atlas.header.atlas_size[0],
+				atlas.header.atlas_size[1],
+			),
+		},
+	)
+
+	content = strings.concatenate({content, "tiles:\n"})
+
+	for name, tile in atlas.tiles {
+		content = strings.concatenate(
+			{
+				content,
+				fmt.aprintf(
+					"  %s:\n    pos: %d %d\n    id: %d\n",
+					name,
+					tile.position[0],
+					tile.position[1],
+					tile.id,
+				),
+			},
+		)
+	}
+
+	content = strings.concatenate({content, "\npresets:\n"})
+
+	for name, preset in atlas.presets {
+		content = strings.concatenate(
+			{
+				content,
+				fmt.aprintf(
+					"  %s:\n  size: %d %d\n    data:\n",
+					name,
+					preset.size[0],
+					preset.size[1],
+				),
+			},
+		)
+		for row := 0; row < preset.size[1]; row += 1 {
+			line := "        "
+			for col := 0; col < preset.size[0]; col += 1 {
+				line = strings.concatenate(
+					{line, fmt.aprintf("%d ", preset.tile_ids[row * preset.size[0] + col])},
+				)
+			}
+			content = strings.concatenate({content, strings.concatenate({line, "\n"})})
+		}
+	}
+
+	_, write_err := os.write(file, transmute([]u8)content)
 }

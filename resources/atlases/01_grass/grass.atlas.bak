@@ -1,0 +1,80 @@
+header:
+  src: tileset_grass.png
+  count: 62
+  sprite_size: 32 32
+  atlas_size: 8 8
+
+tiles:
+  grass_1:
+    pos: 0 0
+  grass_2:
+  grass_3:
+  grass_4:
+  flower_grass_1:
+  flower_grass_2:
+  flower_grass_3:
+  flower_grass_4:
+  grass_5:
+  grass_6:
+  grass_7:
+  grass_8:
+  flower_grass_5:
+  flower_grass_6:
+  flower_grass_7:
+  flower_grass_8:
+  grass_9:
+  grass_10:
+  grass_11:
+  grass_12:
+  flower_grass_9:
+  flower_grass_10:
+  flower_grass_11:
+  flower_grass_12:
+  grass_13
+  grass_14
+  grass_15
+  grass_16
+  flower_grass_13
+  flower_grass_14
+  flower_grass_15
+  flower_grass_16
+  stone_full_1_good
+  stone_full_2_good
+  stone_left_1_good
+  stone_right_1_good
+  stone_bottom_1_good
+  stone_bottom_2_decent
+  stone_bottom_3_bad
+  stone_bottom_4_horrible
+  stone_full_3_decent
+  stone_full_4_decent
+  stone_left_2_decent
+  stone_right_2_decent
+  stone_top_1_good
+  stone_top_2_decent
+  stone_top_3_bad
+  stone_top_4_horrible
+  stone_full_5_bad
+  stone_full_6_bad
+  stone_left_3_bad
+  stone_right_3_bad
+  stone_tl
+  stone_tr
+  stone_bl
+  stone_br
+  stone_full_7_horrible
+  stone_full_8_horrible
+  stone_left_4_horrible
+  stone_right_4_horrible
+  stone_full_7_horrible_flip
+  stone_full_8_horrible_flip
+
+presets:
+  showcase_1:
+    size: 5 5
+    data:
+      3 34 32 35 5
+      37 60 32 61 37
+      32 32 32 32 32
+      45 57 32 56 45
+      7 34 32 35 -1

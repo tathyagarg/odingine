@@ -1,10 +1,8 @@
 package rendering
 
-import "core:fmt"
-
 import gl "vendor:OpenGL"
 
-import "../../utils"
+import "../../utils/globals"
 import render_sprite "../rendering/sprite"
 import rm "../resource_manager"
 
@@ -57,7 +55,7 @@ render :: proc(ctx: ^RendererContext) {
 cleanup_renderer :: proc(ctx: ^RendererContext) {}
 
 get_scissor_bounds :: proc(
-	env: utils.Environment,
+	env: globals.Environment,
 	width: i32,
 	height: i32,
 ) -> (

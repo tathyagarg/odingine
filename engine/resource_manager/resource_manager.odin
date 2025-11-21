@@ -1,5 +1,6 @@
 package rm
 
+import "core:path/filepath"
 import gl "vendor:OpenGL"
 import stb "vendor:stb/image"
 
@@ -20,6 +21,7 @@ Shader :: struct {
 
 Texture :: struct {
 	id:              u32,
+	name:            string,
 	width:           i32,
 	height:          i32,
 	internal_format: i32,
@@ -188,6 +190,7 @@ load_texture :: proc(
 	}
 
 	texture := load_texture_from_file(strings.clone_to_cstring(file), alpha)
+	texture.name = name
 	rm.textures[name] = texture
 	return texture
 }
@@ -196,7 +199,7 @@ get_texture :: proc(rm: ^ResourceManager, name: string) -> Texture {
 	if texture, exists := rm.textures[name]; exists {
 		return texture
 	} else {
-		fmt.eprintfln("Texture not found: %s\n", name)
+		fmt.eprintfln("Texture not found: '%s'\n", name)
 		return Texture{}
 	}
 }
@@ -254,7 +257,8 @@ load_textures_from_atlas :: proc(atlas: atl.Atlas) -> map[string]Texture {
 	height: i32
 	nrChannels: i32
 
-	image_data = stb.load(atlas.header.filename, &width, &height, &nrChannels, 4)
+	path := filepath.join({filepath.dir(string(atlas.source)), string(atlas.header.filename)})
+	image_data = stb.load(strings.clone_to_cstring(path), &width, &height, &nrChannels, 4)
 	if image_data == nil {
 		fmt.eprintfln("Failed to load texture atlas: %s\n", atlas.header.filename)
 		return textures
@@ -294,10 +298,10 @@ load_textures_from_atlas :: proc(atlas: atl.Atlas) -> map[string]Texture {
 			gl.GenTextures(1, &texture.id)
 			generate_texture(&texture, tile_width, tile_height, tile_data)
 
-			// Find the name corresponding to this tile index
 			for name, tile in atlas.tiles {
 				if i32(tile.position[0]) / tile_width == x &&
 				   i32(tile.position[1]) / tile_height == y {
+					texture.name = name
 					textures[name] = texture
 					break
 				}
@@ -307,4 +311,54 @@ load_textures_from_atlas :: proc(atlas: atl.Atlas) -> map[string]Texture {
 
 	stb.image_free(image_data)
 	return textures
+}
+
+update_textures_from_atlas :: proc(rm: ^ResourceManager, atlas: ^atl.Atlas) {
+	image_data: [^]u8
+	width: i32
+	height: i32
+	nrChannels: i32
+
+	path := filepath.join({filepath.dir(string(atlas.source)), string(atlas.header.filename)})
+	image_data = stb.load(strings.clone_to_cstring(path), &width, &height, &nrChannels, 4)
+	if image_data == nil {
+		fmt.eprintfln("Failed to load texture atlas: %s\n", atlas.header.filename)
+		return
+	}
+
+	tile_width := i32(atlas.header.sprite_size[0])
+	tile_height := i32(atlas.header.sprite_size[1])
+
+	tiles_x := width / tile_width
+	tiles_y := height / tile_height
+
+	for y: i32 = 0; y < tiles_y; y += 1 {
+		for x: i32 = 0; x < tiles_x; x += 1 {
+			if (y * tiles_x) + x >= i32(atlas.header.sprite_count) {
+				break
+			}
+
+			tile_data: [^]u8 = raw_data(make([]u8, tile_width * tile_height * 4)[:])
+
+			for row: i32 = 0; row < tile_height; row += 1 {
+				src_start := ((y * tile_height + row) * width + (x * tile_width)) * 4
+				dest_start := row * tile_width * 4
+				copy(
+					tile_data[dest_start:dest_start + tile_width * 4],
+					image_data[src_start:src_start + tile_width * 4],
+				)
+			}
+
+			// Find the name corresponding to this tile index
+			for name, tile in atlas.tiles {
+				if i32(tile.position[0]) / tile_width == x &&
+				   i32(tile.position[1]) / tile_height == y {
+					if texture, exists := rm.textures[name]; exists {
+						generate_texture(&texture, tile_width, tile_height, tile_data)
+					}
+					break
+				}
+			}
+		}
+	}
 }

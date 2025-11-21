@@ -5,9 +5,16 @@ import "core:os"
 
 import "vendor:glfw"
 
-Environment :: enum {
-	Development,
-	Production,
+import atl "../engine/atlas"
+import rendering "../engine/rendering"
+import rm "../engine/resource_manager"
+
+DevelopmentState :: struct {
+	game_focused:   bool,
+	atlases:        map[string]^atl.Atlas,
+	event_handlers: map[string]proc(state: ^DevelopmentState),
+	manager:        ^rm.ResourceManager,
+	render_context: ^rendering.RendererContext,
 }
 
 terminate :: proc(message: string = "Terminating application due to an error.") {
