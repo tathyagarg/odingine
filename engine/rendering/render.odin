@@ -21,50 +21,17 @@ RendererContext :: struct {
 	objects: [dynamic]RenderObject,
 }
 
-BASIC_TRIANGLE_VERTEX_SHADER_SOURCE :: "resources/shaders/01_basic/triangle.vert"
-BASIC_TRIANGLE_FRAGMENT_SHADER_SOURCE :: "resources/shaders/01_basic/triangle.frag"
-
-SPRITE_VERTEX_SHADER_SOURCE :: "resources/shaders/02_sprite/sprite.vert"
-SPRITE_FRAGMENT_SHADER_SOURCE :: "resources/shaders/02_sprite/sprite.frag"
-
-CHARACTER_TEXTURE_PATH :: "resources/textures/character.png"
-
-render_triangle :: proc() -> u32 {
-	vertices := [?]f32{0.0, 0.5, 0.0, -0.5, -0.5, 0.0, 0.5, -0.5, 0.0}
-	indices := [?]u32{0, 1, 2}
-
-	vao, vbo, ebo: u32
-	gl.GenVertexArrays(1, &vao)
-	gl.GenBuffers(1, &vbo)
-	gl.GenBuffers(1, &ebo)
-
-	gl.BindVertexArray(vao)
-
-	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-	gl.BufferData(gl.ARRAY_BUFFER, size_of(vertices), raw_data(&vertices), gl.STATIC_DRAW)
-
-	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo)
-	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, size_of(indices), raw_data(&indices), gl.STATIC_DRAW)
-
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 3 * size_of(f32), 0)
-	gl.EnableVertexAttribArray(0)
-
-	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
-	gl.BindVertexArray(0)
-
-	fmt.println("2D triangle rendering setup complete.")
-
-	return vao
-}
-
-initialize_renderer :: proc(manager: ^rm.ResourceManager) -> RendererContext {
-	rm.load_shader(manager, "sprite", SPRITE_VERTEX_SHADER_SOURCE, SPRITE_FRAGMENT_SHADER_SOURCE)
-
-	projection := utils.orthographic_projection_matrix(0.0, 800.0, 600.0, 0.0, -1.0, 1.0)
+initialize_renderer :: proc(
+	manager: ^rm.ResourceManager,
+	sprite_vertex_shader: string,
+	sprite_fragment_shader: string,
+	projection: ^matrix[4, 4]f32,
+) -> RendererContext {
+	rm.load_shader(manager, "sprite", sprite_vertex_shader, sprite_fragment_shader)
 
 	shader := rm.get_shader(manager, "sprite")
 	rm.use_shader(&shader)
-	rm.set_matrix4("projection", &projection, &shader)
+	rm.set_matrix4("projection", projection, &shader)
 	rm.set_integer("image", 0, &shader)
 
 	objects := [dynamic]RenderObject{}

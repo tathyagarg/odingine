@@ -8,8 +8,10 @@ import imgui_opengl3 "../third_party/imgui/imgui_impl_opengl3"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 
+import atl "../engine/atlas"
 import gui "../engine/gui"
 import rendering "../engine/rendering"
+import sprites "../engine/rendering/sprite"
 import rm "../engine/resource_manager"
 import "../utils"
 
@@ -18,7 +20,12 @@ WINDOW_HEIGHT :: 800
 
 ENVIRONMENT :: utils.Environment.Development
 
-TILESET_TEXTURE_PATH :: "resources/textures/tileset_grass.png"
+TILESET_TEXTURE_PATH :: "resources/atlases/01_grass"
+
+BASE_SPRITE_VERTEX_SHADER :: #load("../resources/shaders/02_sprite/sprite.vert")
+BASE_SPRITE_FRAGMENT_SHADER :: #load("../resources/shaders/02_sprite/sprite.frag")
+
+TILE_SCALE :: 2
 
 key_callback :: proc "c" (
 	window: glfw.WindowHandle,
@@ -27,7 +34,7 @@ key_callback :: proc "c" (
 	action: i32,
 	mods: i32,
 ) {
-	if (ENVIRONMENT == .Development) {
+	when (ENVIRONMENT == .Development) {
 		if key == glfw.KEY_ESCAPE && action == glfw.PRESS {
 			glfw.SetWindowShouldClose(window, true)
 		}
@@ -59,81 +66,76 @@ main :: proc() {
 
 	manager := rm.initialize_resource_manager()
 
-	render_context := rendering.initialize_renderer(&manager)
+	projection := utils.orthographic_projection_matrix(
+		0.0,
+		f32(WINDOW_WIDTH),
+		f32(WINDOW_HEIGHT),
+		0.0,
+		-1.0,
+		1.0,
+	)
+
+	render_context := rendering.initialize_renderer(
+		&manager,
+		string(BASE_SPRITE_VERTEX_SHADER),
+		string(BASE_SPRITE_FRAGMENT_SHADER),
+		&projection,
+	)
 	defer rendering.cleanup_renderer(&render_context)
 
-	tileset_mapping: map[string]int = make(map[string]int)
+	res := atl.parse(TILESET_TEXTURE_PATH)
+	if res == nil {
+		fmt.println("Failed to initialize texture atlas")
+		utils.terminate()
+		return
+	}
+	atlas := res.?
 
-	// this was macro'd I didn't write it by hand
-	tileset_mapping["grass_1"] = 0
-	tileset_mapping["grass_2"] = 1
-	tileset_mapping["grass_3"] = 2
-	tileset_mapping["grass_4"] = 3
-	tileset_mapping["flower_grass_1"] = 4
-	tileset_mapping["flower_grass_2"] = 5
-	tileset_mapping["flower_grass_3"] = 6
-	tileset_mapping["flower_grass_4"] = 7
-	tileset_mapping["grass_5"] = 8
-	tileset_mapping["grass_6"] = 9
-	tileset_mapping["grass_7"] = 10
-	tileset_mapping["grass_8"] = 11
-	tileset_mapping["flower_grass_5"] = 12
-	tileset_mapping["flower_grass_6"] = 13
-	tileset_mapping["flower_grass_7"] = 14
-	tileset_mapping["flower_grass_8"] = 15
-	tileset_mapping["grass_9"] = 16
-	tileset_mapping["grass_10"] = 17
-	tileset_mapping["grass_11"] = 18
-	tileset_mapping["grass_12"] = 19
-	tileset_mapping["flower_grass_9"] = 20
-	tileset_mapping["flower_grass_10"] = 21
-	tileset_mapping["flower_grass_11"] = 22
-	tileset_mapping["flower_grass_12"] = 23
-	tileset_mapping["grass_13"] = 24
-	tileset_mapping["grass_14"] = 25
-	tileset_mapping["grass_15"] = 26
-	tileset_mapping["grass_16"] = 27
-	tileset_mapping["flower_grass_13"] = 28
-	tileset_mapping["flower_grass_14"] = 29
-	tileset_mapping["flower_grass_15"] = 30
-	tileset_mapping["flower_grass_16"] = 31
-	tileset_mapping["stone_full_1_good"] = 32
-	tileset_mapping["stone_full_2_good"] = 33
-	tileset_mapping["stone_left_1_good"] = 34
-	tileset_mapping["stone_right_1_good"] = 35
-	tileset_mapping["stone_bottom_1_good"] = 36
-	tileset_mapping["stone_bottom_2_decent"] = 37
-	tileset_mapping["stone_bottom_3_bad"] = 38
-	tileset_mapping["stone_bottom_4_horrible"] = 39
-	tileset_mapping["stone_full_3_decent"] = 40
-	tileset_mapping["stone_full_4_decent"] = 41
-	tileset_mapping["stone_left_2_decent"] = 42
-	tileset_mapping["stone_right_2_decent"] = 43
-	tileset_mapping["stone_top_1_good"] = 44
-	tileset_mapping["stone_top_2_decent"] = 45
-	tileset_mapping["stone_top_3_bad"] = 46
-	tileset_mapping["stone_top_4_horrible"] = 47
-	tileset_mapping["stone_full_5_bad"] = 48
-	tileset_mapping["stone_full_6_bad"] = 49
-	tileset_mapping["stone_left_3_bad"] = 50
-	tileset_mapping["stone_right_3_bad"] = 51
-	tileset_mapping["stone_tl"] = 52
-	tileset_mapping["stone_tr"] = 53
-	tileset_mapping["stone_bl"] = 54
-	tileset_mapping["stone_br"] = 55
-	tileset_mapping["stone_full_7_horrible"] = 56
-	tileset_mapping["stone_full_8_horrible"] = 57
-	tileset_mapping["stone_left_4_horrible"] = 58
-	tileset_mapping["stone_right_4_horrible"] = 59
-	tileset_mapping["stone_full_7_horrible_flip"] = 60
-	tileset_mapping["stone_full_8_horrible_flip"] = 61
+	rm.load_atlas(&manager, atlas)
 
-	tileset: []string = make([]string, len(tileset_mapping))
-	for name, index in tileset_mapping {
-		tileset[index] = name
+	// rm.load_texture(&manager, "grass_1", TILESET_TEXTURE_PATH + "/tileset_grass.png")
+
+	// append(
+	// 	&render_context.objects,
+	// 	rendering.RenderObject {
+	// 		position = {f32(100), f32(100)},
+	// 		size = {f32(64), f32(64)},
+	// 		rotation = f32(0),
+	// 		texture = rm.get_texture(&manager, "grass_1"),
+	// 	},
+	// )
+
+	sprite_shader := rm.get_shader(&manager, "sprite")
+	for tileset_id, i in atlas.presets[0].tile_ids {
+		texture: rm.Texture
+		for name, t in atlas.tiles {
+			if t.id == tileset_id {
+				fmt.println("Loading texture:", name)
+				texture = rm.get_texture(&manager, name)
+				fmt.println("Texture loaded:", texture)
+				break
+			}
+		}
+
+		append(
+			&render_context.objects,
+			rendering.RenderObject {
+				sprite = sprites.initialize_sprite(&manager, &sprite_shader),
+				position = {
+					f32(TILE_SCALE * (i % atlas.presets[0].size[0]) * atlas.header.sprite_size[0]),
+					f32(TILE_SCALE * (i / atlas.presets[0].size[0]) * atlas.header.sprite_size[1]),
+				},
+				size = {
+					f32(TILE_SCALE * atlas.header.sprite_size[0]),
+					f32(TILE_SCALE * atlas.header.sprite_size[1]),
+				},
+				rotation = f32(0),
+				texture = texture,
+			},
+		)
 	}
 
-	rm.load_atlas(&manager, tileset, TILESET_TEXTURE_PATH, 32, 32, 62)
+	fmt.println(render_context.objects)
 
 	imgui.CreateContext()
 	imgui.StyleColorsDark()
@@ -166,17 +168,19 @@ main :: proc() {
 		gl.Scissor(x, y, width, height)
 		rendering.render(&render_context)
 
-		gl.Viewport(0, 0, w, h)
+		when (ENVIRONMENT == .Development) {
+			gl.Viewport(0, 0, w, h)
 
-		imgui_glfw.NewFrame()
-		imgui_opengl3.NewFrame()
-		imgui.NewFrame()
+			imgui_glfw.NewFrame()
+			imgui_opengl3.NewFrame()
+			imgui.NewFrame()
 
-		gui.show_gui(WINDOW_WIDTH, WINDOW_HEIGHT)
+			gui.show_gui(WINDOW_WIDTH, WINDOW_HEIGHT)
 
-		imgui.Render()
+			imgui.Render()
 
-		imgui_opengl3.RenderDrawData(imgui.GetDrawData())
+			imgui_opengl3.RenderDrawData(imgui.GetDrawData())
+		}
 
 		glfw.SwapBuffers(window)
 		glfw.PollEvents()

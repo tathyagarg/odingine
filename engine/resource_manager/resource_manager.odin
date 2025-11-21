@@ -4,9 +4,9 @@ import gl "vendor:OpenGL"
 import stb "vendor:stb/image"
 
 import "core:fmt"
-import "core:os"
 import "core:strings"
 
+import atl "../atlas"
 import "../rendering/internal"
 
 ResourceManager :: struct {
@@ -49,54 +49,31 @@ get_shader :: proc(rm: ^ResourceManager, name: string) -> Shader {
 load_shader :: proc(
 	rm: ^ResourceManager,
 	name: string,
-	vertex_path: string,
-	fragment_path: string,
-	geometry_path: string = "",
+	vertex_source: string,
+	fragment_source: string,
+	geometry_source: string = "",
 ) -> Shader {
 	if shader, exists := rm.shaders[name]; exists {
 		return shader
 	}
 
-	shader_program := load_shader_from_file(vertex_path, fragment_path, geometry_path)
+	shader_program := load_shader_from_source(vertex_source, fragment_source, geometry_source)
 	rm.shaders[name] = shader_program
 	return shader_program
 }
 
-load_shader_from_file :: proc(
-	vertex_path: string,
-	fragment_path: string,
-	geometry_path: string = "",
+load_shader_from_source :: proc(
+	vertex_source: string,
+	fragment_source: string,
+	geometry_source: string = "",
 ) -> Shader {
-	geometry_source: cstring
-
-	vertex_code, vertex_success := os.read_entire_file_from_filename(vertex_path)
-	if !vertex_success {
-		fmt.eprintfln("Failed to read vertex shader file: %s\n", vertex_path)
-	}
-
-	fragment_code, fragment_success := os.read_entire_file_from_filename(fragment_path)
-	if !fragment_success {
-		fmt.eprintfln("Failed to read fragment shader file: %s\n", fragment_path)
-	}
-
-	if (geometry_path != "") {
-		geometry_code, geometry_success := os.read_entire_file_from_filename(geometry_path)
-		if !geometry_success {
-			fmt.eprintfln("Failed to read geometry shader file: %s\n", geometry_path)
-		}
-		geometry_source := strings.clone_to_cstring(string(geometry_code))
-	}
-
-	vertex_source := strings.clone_to_cstring(string(vertex_code))
-	fragment_source := strings.clone_to_cstring(string(fragment_code))
-
 	shader: Shader
 
-	if (geometry_path != "") {
-		compile_shader(&shader, &vertex_source, &fragment_source, &geometry_source)
-	} else {
-		compile_shader(&shader, &vertex_source, &fragment_source)
-	}
+	vertex_code := strings.clone_to_cstring(vertex_source)
+	fragment_code := strings.clone_to_cstring(fragment_source)
+	geometry_code := strings.clone_to_cstring(geometry_source)
+
+	compile_shader(&shader, &vertex_code, &fragment_code, &geometry_code)
 
 	return shader
 }
@@ -258,27 +235,36 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> Texture {
 
 load_atlas :: proc(
 	rm: ^ResourceManager,
-	names: []string,
-	file: string,
-	tile_width: i32,
-	tile_height: i32,
-	count: i32,
-) -> []Texture {
-	textures := load_textures_from_atlas(file, tile_width, tile_height, count)
+	atlas: atl.Atlas,
+	// names: []string,
+	// file: string,
+	// tile_width: i32,
+	// tile_height: i32,
+	// count: i32,
+) -> map[string]Texture {
+	textures := load_textures_from_atlas(
+		atlas.header.filename,
+		i32(atlas.header.sprite_size[0]),
+		i32(atlas.header.sprite_size[1]),
+		i32(atlas.header.sprite_count),
+		atlas.tiles,
+	)
 
-	for i: int = 0; i < len(names) && i < len(textures); i += 1 {
-		rm.textures[names[i]] = textures[i]
+	for name, _ in atlas.tiles {
+		rm.textures[name] = textures[name]
 	}
+
 	return textures
 }
 
 load_textures_from_atlas :: proc(
-	file: string,
+	file: cstring,
 	tile_width: i32,
 	tile_height: i32,
 	count: i32,
-) -> []Texture {
-	textures: []Texture = make([]Texture, count)
+	mapping: map[string]atl.Tile,
+) -> map[string]Texture {
+	textures: map[string]Texture = make(map[string]Texture, count)
 
 	image_data: [^]u8
 	width: i32
@@ -287,7 +273,7 @@ load_textures_from_atlas :: proc(
 
 	count_tiles: i32 = 0
 
-	image_data = stb.load(strings.clone_to_cstring(file), &width, &height, &nrChannels, 4)
+	image_data = stb.load(file, &width, &height, &nrChannels, 4)
 	if image_data == nil {
 		fmt.eprintfln("Failed to load texture atlas: %s\n", file)
 		return textures
@@ -326,7 +312,15 @@ load_textures_from_atlas :: proc(
 
 			gl.GenTextures(1, &texture.id)
 			generate_texture(&texture, tile_width, tile_height, tile_data)
-			textures[count_tiles] = texture
+
+			// Find the name corresponding to this tile index
+			for name, tile in mapping {
+				if i32(tile.position[0]) / tile_width == x &&
+				   i32(tile.position[1]) / tile_height == y {
+					textures[name] = texture
+					break
+				}
+			}
 
 			count_tiles += 1
 		}
