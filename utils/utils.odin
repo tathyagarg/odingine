@@ -2,6 +2,7 @@ package utils
 
 import "core:fmt"
 import "core:os"
+import "core:strings"
 
 import "vendor:glfw"
 
@@ -9,12 +10,37 @@ import atl "../engine/atlas"
 import rendering "../engine/rendering"
 import rm "../engine/resource_manager"
 
+AddObject :: struct {
+	name:           cstring,
+	texture_source: cstring,
+	position:       [2]f32,
+}
+
 DevelopmentState :: struct {
 	game_focused:   bool,
 	atlases:        map[string]^atl.Atlas,
-	event_handlers: map[string]proc(state: ^DevelopmentState),
+	event_handlers: map[string]proc(state: ^DevelopmentState, args: ..any),
 	manager:        ^rm.ResourceManager,
 	render_context: ^rendering.RendererContext,
+	add_object:     AddObject,
+}
+
+default_development_state :: proc() -> DevelopmentState {
+	addobject_texture_source := strings.unsafe_string_to_cstring(string(make([]u8, 256)[:0]))
+	addobject_name := strings.unsafe_string_to_cstring(string(make([]u8, 256)[:0]))
+
+	return DevelopmentState {
+		game_focused = false,
+		atlases = map[string]^atl.Atlas{},
+		event_handlers = map[string]proc(state: ^DevelopmentState, args: ..any){},
+		manager = nil,
+		render_context = nil,
+		add_object = AddObject {
+			name = addobject_name,
+			texture_source = addobject_texture_source,
+			position = [2]f32{0.0, 0.0},
+		},
+	}
 }
 
 terminate :: proc(message: string = "Terminating application due to an error.") {

@@ -99,17 +99,15 @@ main :: proc() {
 	)
 	defer rendering.cleanup_renderer(&render_context)
 
-	state := utils.DevelopmentState {
-		game_focused   = false,
-		atlases        = map[string]^atl.Atlas{},
-		event_handlers = map[string]proc(state: ^utils.DevelopmentState){},
-		manager        = &manager,
-		render_context = &render_context,
-	}
+	state := utils.default_development_state()
+	state.manager = &manager
+	state.render_context = &render_context
 
-	state.event_handlers["save_atlas"] = proc(state: ^utils.DevelopmentState) {
-		atl.save_atlas(state.atlases["main"])
-		rm.update_textures_from_atlas(state.manager, state.atlases["main"])
+	state.event_handlers["save_atlas"] = proc(state: ^utils.DevelopmentState, args: ..any) {
+		for name, atlas_ptr in state.atlases {
+			atl.save_atlas(state.atlases["main"])
+			rm.update_textures_from_atlas(state.manager, state.atlases["main"])
+		}
 
 		for &object in state.render_context.objects {
 			if object.texture.name == "" {
@@ -117,6 +115,39 @@ main :: proc() {
 			}
 			object.texture = rm.get_texture(state.manager, object.texture.name)
 		}
+	}
+
+	state.event_handlers["load_atlas"] = proc(state: ^utils.DevelopmentState, args: ..any) {
+		filepath := transmute(string)args[0]
+		name := transmute(string)args[1]
+
+		res := atl.parse(filepath)
+		if res == nil {
+			fmt.println("Failed to load texture atlas from ", filepath)
+			return
+		}
+		atlas := res.?
+		rm.load_atlas(state.manager, atlas)
+		state.atlases[name] = &atlas
+	}
+
+	state.event_handlers["add_object"] = proc(state: ^utils.DevelopmentState, args: ..any) {
+		name := state.add_object.name
+		texture_source := state.add_object.texture_source
+		position := state.add_object.position
+
+		texture := rm.load_texture(state.manager, string(name), string(texture_source))
+		sprite_shader := rm.get_shader(state.manager, "sprite")
+
+		new_object := rendering.RenderObject {
+			sprite   = sprites.initialize_sprite(state.manager, &sprite_shader),
+			position = position,
+			size     = [2]f32{f32(texture.width), f32(texture.height)},
+			rotation = f32(0),
+			texture  = texture,
+		}
+
+		append(&state.render_context.objects, new_object)
 	}
 
 	glfw.SetWindowUserPointer(window, &state)
