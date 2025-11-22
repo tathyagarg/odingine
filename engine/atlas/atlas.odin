@@ -61,7 +61,6 @@ load_file :: proc(path: string) -> (string, string, bool) {
 	}
 
 	full_path := filepath.join([]string{path, target})
-	fmt.println("Loading atlas from: ", full_path)
 	data, read_err := os.read_entire_file_from_filename_or_err(full_path)
 	if read_err != nil {
 		fmt.println("Error reading atlas file: ", read_err)

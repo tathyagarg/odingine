@@ -14,15 +14,26 @@ AddObject :: struct {
 	name:           cstring,
 	texture_source: cstring,
 	position:       [2]f32,
+	layer:          i32,
 }
 
 DevelopmentState :: struct {
 	game_focused:   bool,
 	atlases:        map[string]^atl.Atlas,
-	event_handlers: map[string]proc(state: ^DevelopmentState, args: ..any),
+	event_handlers: map[string]proc(state: ^DevelopmentState, args: ..any) -> ErrorMessage,
 	manager:        ^rm.ResourceManager,
 	render_context: ^rendering.RendererContext,
 	add_object:     AddObject,
+	error_message:  string,
+}
+
+ErrorMessage :: enum {
+	None,
+	FailedToLoadAtlas,
+	FailedToSaveAtlas,
+	FailedToLoadTexture,
+	FailedToAddObject,
+	EmptyNameOrTextureSource,
 }
 
 default_development_state :: proc() -> DevelopmentState {
@@ -32,13 +43,14 @@ default_development_state :: proc() -> DevelopmentState {
 	return DevelopmentState {
 		game_focused = false,
 		atlases = map[string]^atl.Atlas{},
-		event_handlers = map[string]proc(state: ^DevelopmentState, args: ..any){},
+		event_handlers = map[string]proc(state: ^DevelopmentState, args: ..any) -> ErrorMessage{},
 		manager = nil,
 		render_context = nil,
 		add_object = AddObject {
 			name = addobject_name,
 			texture_source = addobject_texture_source,
 			position = [2]f32{0.0, 0.0},
+			layer = 0,
 		},
 	}
 }

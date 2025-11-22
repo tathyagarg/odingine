@@ -1,5 +1,7 @@
 package rendering
 
+import "core:strings"
+
 import gl "vendor:OpenGL"
 
 import "../../utils/globals"
@@ -14,9 +16,16 @@ RenderObject :: struct {
 	rotation: f32,
 }
 
+RenderLayer :: struct {
+	name:    cstring,
+	objects: [dynamic]RenderObject,
+	z_layer: i32,
+}
+
 RendererContext :: struct {
 	manager: ^rm.ResourceManager,
-	objects: [dynamic]RenderObject,
+	layers:  [dynamic]RenderLayer,
+	// objects: [dynamic]RenderObject,
 }
 
 initialize_renderer :: proc(
@@ -32,23 +41,25 @@ initialize_renderer :: proc(
 	rm.set_matrix4("projection", projection, &shader)
 	rm.set_integer("image", 0, &shader)
 
-	objects := [dynamic]RenderObject{}
-	return RendererContext{manager = manager, objects = objects}
+	layers: [dynamic]RenderLayer = {}
+	return RendererContext{manager = manager, layers = layers}
 }
 
 render :: proc(ctx: ^RendererContext) {
 	gl.ClearColor(0.2, 0.3, 0.3, 1.0)
 	gl.Clear(gl.COLOR_BUFFER_BIT)
 
-	for &object in ctx.objects {
-		render_sprite.draw_sprite(
-			ctx.manager,
-			&object.sprite,
-			&object.texture,
-			object.position,
-			object.size,
-			object.rotation,
-		)
+	for &layer in ctx.layers {
+		for &object in layer.objects {
+			render_sprite.draw_sprite(
+				ctx.manager,
+				&object.sprite,
+				&object.texture,
+				object.position,
+				object.size,
+				object.rotation,
+			)
+		}
 	}
 }
 
@@ -69,4 +80,14 @@ get_scissor_bounds :: proc(
 	} else {
 		return 0, 0, width, height
 	}
+}
+
+add_layer :: proc(ctx: ^RendererContext, name: string, z_layer: i32) {
+	layer_name := strings.unsafe_string_to_cstring(name)
+	new_layer := RenderLayer {
+		name    = layer_name,
+		objects = [dynamic]RenderObject{},
+		z_layer = z_layer,
+	}
+	append(&ctx.layers, new_layer)
 }

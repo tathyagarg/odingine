@@ -1,12 +1,20 @@
 package gui
 
 import "core:fmt"
+import "core:sort"
 import "core:strings"
 
 import "vendor:glfw"
 
+import rendering "../../engine/rendering"
 import imgui "../../third_party/imgui"
 import "../../utils"
+
+COLOR_GREEN :: imgui.Vec4{0.2, 0.6, 0.2, 1.0}
+COLOR_GREEN_HOVERED :: imgui.Vec4{0.3, 0.7, 0.3, 1.0}
+COLOR_GREEN_ACTIVE :: imgui.Vec4{0.1, 0.5, 0.1, 1.0}
+
+COLOR_U32 :: imgui.GetColorU32ImVec4
 
 show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandle) {
 	state := (^utils.DevelopmentState)(glfw.GetWindowUserPointer(window))
@@ -27,17 +35,15 @@ show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandl
 	if imgui.Begin("Test Window", nil, {.NoMove, .NoResize, .NoCollapse}) {
 		imgui.Checkbox("Game focused?", &state.game_focused)
 
-		if (imgui.TreeNode("Texture Atlases")) {
+		if (imgui.CollapsingHeader("Texture Atlases")) {
 			for name, atlas_ptr in state.atlases {
 				imgui.SeparatorText(strings.unsafe_string_to_cstring(name))
 
-				if imgui.InputText(
+				imgui.InputText(
 					strings.clone_to_cstring(fmt.aprintf("Source##%s", name)),
 					atlas_ptr.header.filename,
 					128,
-				) {
-
-				}
+				)
 
 				if imgui.Button("Save") {
 					state.event_handlers["save_atlas"](state)
@@ -53,31 +59,106 @@ show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandl
 			imgui.InputText(strings.clone_to_cstring("Source##atlas_path"), filepath, 256)
 			imgui.InputText(strings.clone_to_cstring("Name##atlas_name"), name, 64)
 
-			if imgui.Button("Load Atlas") {
+			if imgui.Button("Load Atlas", {imgui.GetContentRegionAvail()[0], 0}) {
 				state.event_handlers["load_atlas"](state, string(filepath), string(name))
 			}
-
-			imgui.TreePop()
 		}
 
-		if (imgui.TreeNode("Add Object")) {
+		if (imgui.CollapsingHeader("Add Object##add_object_header")) {
+			imgui.SeparatorText("General##generalsep_addobject")
+			imgui.InputText(
+				strings.clone_to_cstring("Name##object_name"),
+				state.add_object.name,
+				256,
+			)
+
 			imgui.InputText(
 				strings.clone_to_cstring("Source##object_path"),
 				state.add_object.texture_source,
 				256,
 			)
+
 			imgui.InputFloat2(
 				strings.clone_to_cstring("Position##object_position"),
 				&state.add_object.position,
 			)
 
-			if imgui.Button("Add Object") {
-				state.event_handlers["add_object"](state)
+			imgui.SeparatorText("Layer##layersep_addobject")
+			for &layer, i in state.render_context.layers {
+				if imgui.Selectable(
+					strings.clone_to_cstring(
+						fmt.aprintf("%s##%s_addobject", layer.name, layer.name),
+					),
+					state.add_object.layer == i32(i),
+				) {
+					state.add_object.layer = i32(i)
+				}
 			}
 
-			imgui.TreePop()
+			imgui.Spacing()
+
+			imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_GREEN))
+			imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_GREEN_HOVERED))
+			imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_GREEN_ACTIVE))
+			if imgui.Button(
+				"Add Object##add_object_button",
+				{imgui.GetContentRegionAvail()[0], 0},
+			) {
+				ok := state.event_handlers["add_object"](state)
+				fmt.println("Add Object returned: ", ok)
+				if ok != nil {
+					state.error_message = fmt.aprintf("Failed to add object: %s", ok)
+					fmt.println("Error message set to: ", state.error_message)
+					imgui.OpenPopup("Error")
+				}
+			}
+			imgui.PopStyleColor(3)
+		}
+
+		if (imgui.CollapsingHeader("Render Layers")) {
+			for &layer, i in state.render_context.layers {
+				if imgui.InputInt(
+					strings.clone_to_cstring(fmt.aprintf("%s##%s_layers", layer.name, layer.name)),
+					&layer.z_layer,
+				) {
+					// sort the layers based on their z_layer
+					sort.quick_sort_proc(
+						state.render_context.layers[:],
+						proc(a: rendering.RenderLayer, b: rendering.RenderLayer) -> int {
+							return sort.compare_i32s(a.z_layer, b.z_layer)
+						},
+					)
+				}
+			}
 		}
 	}
+
+	imgui.SetNextWindowSize(imgui.Vec2{600, 300}, imgui.Cond.Appearing)
+	error_open := imgui.BeginPopupModal("Error", nil, {.AlwaysAutoResize})
+
+	if error_open {
+		imgui.TextWrapped(strings.clone_to_cstring(state.error_message))
+		imgui.Separator()
+
+		label: cstring = "OK"
+
+		size: f32 = 150.0
+		available := imgui.GetContentRegionAvail().x
+
+		offset := (available - size) / 2
+		imgui.SetCursorPosX(imgui.GetCursorPosX() + offset)
+
+		imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_GREEN))
+		imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_GREEN_HOVERED))
+		imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_GREEN_ACTIVE))
+		if imgui.Button(label, imgui.Vec2{size, 0}) {
+			state.error_message = ""
+			imgui.CloseCurrentPopup()
+		}
+		imgui.PopStyleColor(3)
+		imgui.EndPopup()
+	}
+
 	imgui.End()
 
 	imgui.SetNextWindowPos(

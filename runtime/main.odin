@@ -2,6 +2,7 @@ package main
 
 import "base:runtime"
 import "core:fmt"
+import "core:strings"
 
 import imgui "../third_party/imgui"
 import imgui_glfw "../third_party/imgui/imgui_impl_glfw"
@@ -99,42 +100,66 @@ main :: proc() {
 	)
 	defer rendering.cleanup_renderer(&render_context)
 
+	rendering.add_layer(&render_context, "default", 0)
+	rendering.add_layer(&render_context, "background", 1)
+	rendering.add_layer(&render_context, "foreground", 2)
+
 	state := utils.default_development_state()
 	state.manager = &manager
 	state.render_context = &render_context
 
-	state.event_handlers["save_atlas"] = proc(state: ^utils.DevelopmentState, args: ..any) {
+	state.event_handlers["save_atlas"] = proc(
+		state: ^utils.DevelopmentState,
+		args: ..any,
+	) -> utils.ErrorMessage {
 		for name, atlas_ptr in state.atlases {
 			atl.save_atlas(state.atlases["main"])
 			rm.update_textures_from_atlas(state.manager, state.atlases["main"])
 		}
 
-		for &object in state.render_context.objects {
-			if object.texture.name == "" {
-				continue
+		for &layer in state.render_context.layers {
+			for &object in layer.objects {
+				if object.texture.name == "" {
+					continue
+				}
+				object.texture = rm.get_texture(state.manager, object.texture.name)
 			}
-			object.texture = rm.get_texture(state.manager, object.texture.name)
 		}
+
+		return nil
 	}
 
-	state.event_handlers["load_atlas"] = proc(state: ^utils.DevelopmentState, args: ..any) {
+	state.event_handlers["load_atlas"] = proc(
+		state: ^utils.DevelopmentState,
+		args: ..any,
+	) -> utils.ErrorMessage {
 		filepath := transmute(string)args[0]
 		name := transmute(string)args[1]
 
 		res := atl.parse(filepath)
 		if res == nil {
 			fmt.println("Failed to load texture atlas from ", filepath)
-			return
+			return .FailedToLoadAtlas
 		}
 		atlas := res.?
 		rm.load_atlas(state.manager, atlas)
 		state.atlases[name] = &atlas
+
+		return nil
 	}
 
-	state.event_handlers["add_object"] = proc(state: ^utils.DevelopmentState, args: ..any) {
+	state.event_handlers["add_object"] = proc(
+		state: ^utils.DevelopmentState,
+		args: ..any,
+	) -> utils.ErrorMessage {
 		name := state.add_object.name
 		texture_source := state.add_object.texture_source
 		position := state.add_object.position
+
+		if len(name) == 0 || len(texture_source) == 0 {
+			fmt.println("Object name and texture source cannot be empty.")
+			return .EmptyNameOrTextureSource
+		}
 
 		texture := rm.load_texture(state.manager, string(name), string(texture_source))
 		sprite_shader := rm.get_shader(state.manager, "sprite")
@@ -147,7 +172,8 @@ main :: proc() {
 			texture  = texture,
 		}
 
-		append(&state.render_context.objects, new_object)
+		append(&state.render_context.layers[state.add_object.layer].objects, new_object)
+		return nil
 	}
 
 	glfw.SetWindowUserPointer(window, &state)
@@ -165,8 +191,6 @@ main :: proc() {
 
 	sprite_shader := rm.get_shader(&manager, "sprite")
 
-	fmt.println(atlas)
-
 	for tileset_id, i in atlas.presets["showcase_1"].tile_ids {
 		texture: rm.Texture
 		for name, t in atlas.tiles {
@@ -177,7 +201,7 @@ main :: proc() {
 		}
 
 		append(
-			&render_context.objects,
+			&render_context.layers[0].objects,
 			rendering.RenderObject {
 				sprite = sprites.initialize_sprite(&manager, &sprite_shader),
 				position = {
