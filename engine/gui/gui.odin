@@ -52,15 +52,19 @@ show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandl
 
 			imgui.SeparatorText("Load Texture Atlas")
 
-			// FIX: These cstrings are recreated every frame, causing the input text to reset.
-			filepath: cstring = strings.clone_to_cstring("")
-			name: cstring = strings.clone_to_cstring("")
-
-			imgui.InputText(strings.clone_to_cstring("Source##atlas_path"), filepath, 256)
-			imgui.InputText(strings.clone_to_cstring("Name##atlas_name"), name, 64)
+			imgui.InputText(
+				strings.clone_to_cstring("Source##atlas_path"),
+				ctx.add_atlas.filepath,
+				256,
+			)
+			imgui.InputText(strings.clone_to_cstring("Name##atlas_name"), ctx.add_object.name, 64)
 
 			if imgui.Button("Load Atlas", {imgui.GetContentRegionAvail()[0], 0}) {
-				ctx.event_handlers["load_atlas"](ctx, string(filepath), string(name))
+				err := ctx.event_handlers["load_atlas"](ctx)
+				if err != nil {
+					ctx.error_message = fmt.aprintf("Failed to load atlas: %s", err)
+					imgui.OpenPopup("Error")
+				}
 			}
 		}
 
@@ -104,11 +108,9 @@ show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandl
 				"Add Object##add_object_button",
 				{imgui.GetContentRegionAvail()[0], 0},
 			) {
-				ok := ctx.event_handlers["add_object"](ctx)
-				fmt.println("Add Object returned: ", ok)
-				if ok != nil {
-					ctx.error_message = fmt.aprintf("Failed to add object: %s", ok)
-					fmt.println("Error message set to: ", ctx.error_message)
+				err := ctx.event_handlers["add_object"](ctx)
+				if err != nil {
+					ctx.error_message = fmt.aprintf("Failed to add object: %s", err)
 					imgui.OpenPopup("Error")
 				}
 			}

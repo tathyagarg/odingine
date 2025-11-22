@@ -1,5 +1,6 @@
 package rendering
 
+import "core:fmt"
 import "core:strings"
 
 import gl "vendor:OpenGL"
@@ -51,6 +52,10 @@ render :: proc(ctx: ^RendererContext) {
 
 	for &layer in ctx.layers {
 		for &object in layer.objects {
+			if object.texture == nil {
+				continue
+			}
+
 			render_sprite.draw_sprite(
 				ctx.manager,
 				&object.sprite,
@@ -76,7 +81,12 @@ get_scissor_bounds :: proc(
 	i32,
 ) {
 	if env == .Development {
-		return width / 6, height / 3, 2 * width / 3, 2 * height / 3
+		w := f32(width)
+		h := f32(height)
+
+		return i32(
+			(w - (w * globals.WINDOW_TO_SCREEN_SCALE)) / 2,
+		), i32(h - (h * globals.WINDOW_TO_SCREEN_SCALE)), i32(w * globals.WINDOW_TO_SCREEN_SCALE), i32(h * globals.WINDOW_TO_SCREEN_SCALE)
 	} else {
 		return 0, 0, width, height
 	}

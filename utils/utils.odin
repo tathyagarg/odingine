@@ -17,6 +17,11 @@ AddObject :: struct {
 	layer:          i32,
 }
 
+AddAtlas :: struct {
+	name:     cstring,
+	filepath: cstring,
+}
+
 SharedContext :: struct {
 	game_focused:   bool,
 	window_size:    [2]i32,
@@ -25,6 +30,7 @@ SharedContext :: struct {
 	manager:        ^rm.ResourceManager,
 	render_context: ^rendering.RendererContext,
 	add_object:     AddObject,
+	add_atlas:      AddAtlas,
 	error_message:  string,
 }
 
@@ -54,6 +60,10 @@ default_shared_context :: proc() -> SharedContext {
 			position = [2]f32{0.0, 0.0},
 			layer = 0,
 		},
+		add_atlas = AddAtlas {
+			name = strings.unsafe_string_to_cstring(string(make([]u8, 64)[:0])),
+			filepath = strings.unsafe_string_to_cstring(string(make([]u8, 256)[:0])),
+		},
 	}
 }
 
@@ -82,4 +92,20 @@ orthographic_projection_matrix :: proc(
 	result[3][3] = 1.0
 
 	return result
+}
+
+// Window coordinates are in range (0, w) and (0, h) with (0,0) at bottom-left
+// Screen coordinates are in range (0, 2w), (0, 2h) with (0,0) at top-left
+window_to_screen_coordinates :: proc(
+	raw_window_size: [2]i32,
+	window_size: [2]i32,
+	window_coords: [2]f32,
+) -> [2]f32 {
+	scale_x := f32(raw_window_size[0]) / f32(window_size[0])
+	scale_y := f32(raw_window_size[1]) / f32(window_size[1])
+
+	screen_x := window_coords[0] * scale_x
+	screen_y := (f32(window_size[1]) - window_coords[1]) * scale_y
+
+	return [2]f32{screen_x, screen_y}
 }

@@ -2,7 +2,6 @@ package main
 
 import "base:runtime"
 import "core:fmt"
-import "core:strings"
 
 import imgui "../third_party/imgui"
 import imgui_glfw "../third_party/imgui/imgui_impl_glfw"
@@ -28,7 +27,7 @@ TILESET_TEXTURE_PATH :: "resources/atlases/01_grass"
 BASE_SPRITE_VERTEX_SHADER :: #load("../resources/shaders/02_sprite/sprite.vert")
 BASE_SPRITE_FRAGMENT_SHADER :: #load("../resources/shaders/02_sprite/sprite.frag")
 
-TILE_SCALE :: 2
+TILE_SCALE :: 5.6
 
 key_callback :: proc "c" (
 	window: glfw.WindowHandle,
@@ -58,6 +57,49 @@ key_callback :: proc "c" (
 	}
 }
 
+mouse_callback :: proc "c" (window: glfw.WindowHandle, button: i32, action: i32, mods: i32) {
+	imgui_glfw.MouseButtonCallback(window, button, action, mods)
+
+	state := (^utils.SharedContext)(glfw.GetWindowUserPointer(window))
+
+	context = runtime.default_context()
+	if action == glfw.PRESS {
+		// This position will be in window coordinates
+		raw_x, raw_y := glfw.GetCursorPos(window)
+
+		x_off, y_off, width, height := rendering.get_scissor_bounds(
+			ENVIRONMENT,
+			state.window_size[0],
+			state.window_size[1],
+		)
+
+
+		x := (2 * raw_x - f64(x_off)) / 2 / globals.WINDOW_TO_SCREEN_SCALE
+		y := raw_y / globals.WINDOW_TO_SCREEN_SCALE
+
+		for &layer in state.render_context.layers {
+			for &object in layer.objects {
+				if object.texture == nil {
+					continue
+				}
+
+				if x >= f64(object.position[0]) &&
+				   x <= f64(object.position[0] + object.size[0]) &&
+				   y >= f64(object.position[1]) &&
+				   y <= f64(object.position[1] + object.size[1]) {
+					fmt.println(
+						"Clicked on object '",
+						object.texture.name,
+						"' in layer '",
+						layer.name,
+						"'",
+					)
+				}
+			}
+		}
+	}
+}
+
 main :: proc() {
 	glfw.Init()
 	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, 3)
@@ -80,6 +122,7 @@ main :: proc() {
 	glfw.MakeContextCurrent(window)
 	gl.load_up_to(3, 3, glfw.gl_set_proc_address)
 	w, h := glfw.GetFramebufferSize(window)
+	fmt.println("Framebuffer size: ", w, "x", h)
 
 	manager := rm.initialize_resource_manager()
 
@@ -134,17 +177,24 @@ main :: proc() {
 		state: ^utils.SharedContext,
 		args: ..any,
 	) -> utils.ErrorMessage {
-		filepath := transmute(string)args[0]
-		name := transmute(string)args[1]
+		filepath := state.add_atlas.filepath
+		name := state.add_atlas.name
 
-		res := atl.parse(filepath)
+		fmt.println("Loading atlas from ", filepath, " with name ", name)
+
+		if len(filepath) == 0 || len(name) == 0 {
+			fmt.println("Atlas filepath and name cannot be empty.")
+			return .EmptyNameOrTextureSource
+		}
+
+		res := atl.parse(string(filepath))
 		if res == nil {
 			fmt.println("Failed to load texture atlas from ", filepath)
 			return .FailedToLoadAtlas
 		}
 		atlas := res.?
 		rm.load_atlas(state.manager, atlas)
-		state.atlases[name] = &atlas
+		state.atlases[string(name)] = &atlas
 
 		return nil
 	}
@@ -201,31 +251,21 @@ main :: proc() {
 			}
 		}
 
-		fmt.println(
-			"Adding sprite with texture name: ",
-			texture_name,
-			rm.get_texture(&manager, texture_name),
-		)
-
 		append(
 			&render_context.layers[0].objects,
 			rendering.RenderObject {
 				sprite = sprites.initialize_sprite(&manager, &sprite_shader),
 				position = {
-					f32(
-						TILE_SCALE *
-						(i % atlas.presets["showcase_1"].size[0]) *
-						atlas.header.sprite_size[0],
-					),
-					f32(
-						TILE_SCALE *
-						(i / atlas.presets["showcase_1"].size[0]) *
-						atlas.header.sprite_size[1],
-					),
+					TILE_SCALE *
+					f32((i % atlas.presets["showcase_1"].size[0])) *
+					f32(atlas.header.sprite_size[0]),
+					TILE_SCALE *
+					f32((i / atlas.presets["showcase_1"].size[0])) *
+					f32(atlas.header.sprite_size[1]),
 				},
 				size = {
-					f32(TILE_SCALE * atlas.header.sprite_size[0]),
-					f32(TILE_SCALE * atlas.header.sprite_size[1]),
+					TILE_SCALE * f32(atlas.header.sprite_size[0]),
+					TILE_SCALE * f32(atlas.header.sprite_size[1]),
 				},
 				rotation = f32(0),
 				texture = rm.get_texture(&manager, texture_name),
@@ -254,6 +294,7 @@ main :: proc() {
 	x, y, width, height := rendering.get_scissor_bounds(ENVIRONMENT, w, h)
 
 	glfw.SetKeyCallback(window, key_callback)
+	glfw.SetMouseButtonCallback(window, mouse_callback)
 
 	imgui.SetNextWindowPos(
 		imgui.Vec2{f32(0), f32(0)},
