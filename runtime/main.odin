@@ -39,7 +39,7 @@ key_callback :: proc "c" (
 ) {
 	imgui_glfw.KeyCallback(window, key, scancode, action, mods)
 
-	state := (^utils.DevelopmentState)(glfw.GetWindowUserPointer(window))
+	state := (^utils.SharedContext)(glfw.GetWindowUserPointer(window))
 	when (ENVIRONMENT == .Development) {
 		if key == glfw.KEY_ESCAPE && action == glfw.PRESS {
 			if state.game_focused {
@@ -104,12 +104,13 @@ main :: proc() {
 	rendering.add_layer(&render_context, "background", 1)
 	rendering.add_layer(&render_context, "foreground", 2)
 
-	state := utils.default_development_state()
+	state := utils.default_shared_context()
+	state.window_size = [2]i32{w, h}
 	state.manager = &manager
 	state.render_context = &render_context
 
 	state.event_handlers["save_atlas"] = proc(
-		state: ^utils.DevelopmentState,
+		state: ^utils.SharedContext,
 		args: ..any,
 	) -> utils.ErrorMessage {
 		for name, atlas_ptr in state.atlases {
@@ -130,7 +131,7 @@ main :: proc() {
 	}
 
 	state.event_handlers["load_atlas"] = proc(
-		state: ^utils.DevelopmentState,
+		state: ^utils.SharedContext,
 		args: ..any,
 	) -> utils.ErrorMessage {
 		filepath := transmute(string)args[0]
@@ -149,7 +150,7 @@ main :: proc() {
 	}
 
 	state.event_handlers["add_object"] = proc(
-		state: ^utils.DevelopmentState,
+		state: ^utils.SharedContext,
 		args: ..any,
 	) -> utils.ErrorMessage {
 		name := state.add_object.name
@@ -161,7 +162,7 @@ main :: proc() {
 			return .EmptyNameOrTextureSource
 		}
 
-		texture := rm.load_texture(state.manager, string(name), string(texture_source))
+		texture := rm.load_texture(state.manager, string(name), string(texture_source), true, true)
 		sprite_shader := rm.get_shader(state.manager, "sprite")
 
 		new_object := rendering.RenderObject {
@@ -192,13 +193,19 @@ main :: proc() {
 	sprite_shader := rm.get_shader(&manager, "sprite")
 
 	for tileset_id, i in atlas.presets["showcase_1"].tile_ids {
-		texture: rm.Texture
+		texture_name := ""
 		for name, t in atlas.tiles {
 			if t.id == tileset_id {
-				texture = rm.get_texture(&manager, name)
+				texture_name = name
 				break
 			}
 		}
+
+		fmt.println(
+			"Adding sprite with texture name: ",
+			texture_name,
+			rm.get_texture(&manager, texture_name),
+		)
 
 		append(
 			&render_context.layers[0].objects,
@@ -221,7 +228,7 @@ main :: proc() {
 					f32(TILE_SCALE * atlas.header.sprite_size[1]),
 				},
 				rotation = f32(0),
-				texture = texture,
+				texture = rm.get_texture(&manager, texture_name),
 			},
 		)
 	}

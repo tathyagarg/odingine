@@ -12,7 +12,7 @@ import "../rendering/internal"
 
 ResourceManager :: struct {
 	shaders:  map[string]Shader,
-	textures: map[string]Texture,
+	textures: map[string]^Texture,
 }
 
 Shader :: struct {
@@ -35,7 +35,7 @@ Texture :: struct {
 initialize_resource_manager :: proc() -> ResourceManager {
 	rm: ResourceManager
 	rm.shaders = map[string]Shader{}
-	rm.textures = map[string]Texture{}
+	rm.textures = map[string]^Texture{}
 	return rm
 }
 
@@ -184,9 +184,12 @@ load_texture :: proc(
 	name: string,
 	file: string,
 	alpha: bool = true,
-) -> Texture {
-	if tex_id, exists := rm.textures[name]; exists {
-		return rm.textures[name]
+	force_overwrite: bool = false,
+) -> ^Texture {
+	if !force_overwrite {
+		if tex_id, exists := rm.textures[name]; exists {
+			return rm.textures[name]
+		}
 	}
 
 	texture := load_texture_from_file(strings.clone_to_cstring(file), alpha)
@@ -195,26 +198,32 @@ load_texture :: proc(
 	return texture
 }
 
-get_texture :: proc(rm: ^ResourceManager, name: string) -> Texture {
+get_texture :: proc(rm: ^ResourceManager, name: string) -> ^Texture {
 	if texture, exists := rm.textures[name]; exists {
-		return texture
+		return rm.textures[name]
 	} else {
 		fmt.eprintfln("Texture not found: '%s'\n", name)
-		return Texture{}
+		return nil
 	}
 }
 
-load_texture_from_file :: proc(file: cstring, alpha: bool) -> Texture {
-	texture: Texture = Texture {
-		width           = 0,
-		height          = 0,
-		internal_format = gl.RGBA,
-		image_format    = gl.RGBA,
-		wrap_s          = gl.REPEAT,
-		wrap_t          = gl.REPEAT,
-		filter_min      = gl.NEAREST,
-		filter_max      = gl.NEAREST,
-	}
+load_texture_from_file :: proc(file: cstring, alpha: bool) -> ^Texture {
+	texture: ^Texture = new(Texture)
+	texture.wrap_s = gl.REPEAT
+	texture.wrap_t = gl.REPEAT
+	texture.filter_min = gl.NEAREST
+	texture.filter_max = gl.NEAREST
+
+	// texture = Texture {
+	// 	width           = 0,
+	// 	height          = 0,
+	// 	internal_format = gl.RGBA,
+	// 	image_format    = gl.RGBA,
+	// 	wrap_s          = gl.REPEAT,
+	// 	wrap_t          = gl.REPEAT,
+	// 	filter_min      = gl.NEAREST,
+	// 	filter_max      = gl.NEAREST,
+	// }
 
 	gl.GenTextures(1, &texture.id)
 
@@ -230,13 +239,13 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> Texture {
 
 	data := stb.load(file, &width, &height, &nrChannels, 4)
 
-	generate_texture(&texture, width, height, data)
+	generate_texture(texture, width, height, data)
 	stb.image_free(data)
 
 	return texture
 }
 
-load_atlas :: proc(rm: ^ResourceManager, atlas: atl.Atlas) -> map[string]Texture {
+load_atlas :: proc(rm: ^ResourceManager, atlas: atl.Atlas) -> map[string]^Texture {
 	textures := load_textures_from_atlas(atlas)
 
 	for name, _ in atlas.tiles {
@@ -246,8 +255,8 @@ load_atlas :: proc(rm: ^ResourceManager, atlas: atl.Atlas) -> map[string]Texture
 	return textures
 }
 
-load_textures_from_atlas :: proc(atlas: atl.Atlas) -> map[string]Texture {
-	textures: map[string]Texture = make(map[string]Texture, atlas.header.sprite_count)
+load_textures_from_atlas :: proc(atlas: atl.Atlas) -> map[string]^Texture {
+	textures: map[string]^Texture = make(map[string]^Texture, atlas.header.sprite_count)
 
 	tile_width := i32(atlas.header.sprite_size[0])
 	tile_height := i32(atlas.header.sprite_size[1])
@@ -284,19 +293,18 @@ load_textures_from_atlas :: proc(atlas: atl.Atlas) -> map[string]Texture {
 				)
 			}
 
-			texture: Texture = Texture {
-				width           = tile_width,
-				height          = tile_height,
-				internal_format = gl.RGBA,
-				image_format    = gl.RGBA,
-				wrap_s          = gl.REPEAT,
-				wrap_t          = gl.REPEAT,
-				filter_min      = gl.NEAREST,
-				filter_max      = gl.NEAREST,
-			}
+			texture: ^Texture = new(Texture)
+			texture.width = tile_width
+			texture.height = tile_height
+			texture.internal_format = gl.RGBA
+			texture.image_format = gl.RGBA
+			texture.wrap_s = gl.REPEAT
+			texture.wrap_t = gl.REPEAT
+			texture.filter_min = gl.NEAREST
+			texture.filter_max = gl.NEAREST
 
 			gl.GenTextures(1, &texture.id)
-			generate_texture(&texture, tile_width, tile_height, tile_data)
+			generate_texture(texture, tile_width, tile_height, tile_data)
 
 			for name, tile in atlas.tiles {
 				if i32(tile.position[0]) / tile_width == x &&
@@ -354,7 +362,7 @@ update_textures_from_atlas :: proc(rm: ^ResourceManager, atlas: ^atl.Atlas) {
 				if i32(tile.position[0]) / tile_width == x &&
 				   i32(tile.position[1]) / tile_height == y {
 					if texture, exists := rm.textures[name]; exists {
-						generate_texture(&texture, tile_width, tile_height, tile_data)
+						generate_texture(texture, tile_width, tile_height, tile_data)
 					}
 					break
 				}

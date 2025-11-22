@@ -17,10 +17,11 @@ AddObject :: struct {
 	layer:          i32,
 }
 
-DevelopmentState :: struct {
+SharedContext :: struct {
 	game_focused:   bool,
+	window_size:    [2]i32,
 	atlases:        map[string]^atl.Atlas,
-	event_handlers: map[string]proc(state: ^DevelopmentState, args: ..any) -> ErrorMessage,
+	event_handlers: map[string]proc(state: ^SharedContext, args: ..any) -> ErrorMessage,
 	manager:        ^rm.ResourceManager,
 	render_context: ^rendering.RendererContext,
 	add_object:     AddObject,
@@ -36,14 +37,15 @@ ErrorMessage :: enum {
 	EmptyNameOrTextureSource,
 }
 
-default_development_state :: proc() -> DevelopmentState {
+default_shared_context :: proc() -> SharedContext {
 	addobject_texture_source := strings.unsafe_string_to_cstring(string(make([]u8, 256)[:0]))
 	addobject_name := strings.unsafe_string_to_cstring(string(make([]u8, 256)[:0]))
 
-	return DevelopmentState {
+	return SharedContext {
 		game_focused = false,
+		window_size = [2]i32{800, 600},
 		atlases = map[string]^atl.Atlas{},
-		event_handlers = map[string]proc(state: ^DevelopmentState, args: ..any) -> ErrorMessage{},
+		event_handlers = map[string]proc(state: ^SharedContext, args: ..any) -> ErrorMessage{},
 		manager = nil,
 		render_context = nil,
 		add_object = AddObject {

@@ -10,7 +10,7 @@ import rm "../resource_manager"
 
 RenderObject :: struct {
 	sprite:   render_sprite.Sprite,
-	texture:  rm.Texture,
+	texture:  ^rm.Texture,
 	position: [2]f32,
 	size:     [2]f32,
 	rotation: f32,
@@ -54,7 +54,7 @@ render :: proc(ctx: ^RendererContext) {
 			render_sprite.draw_sprite(
 				ctx.manager,
 				&object.sprite,
-				&object.texture,
+				object.texture,
 				object.position,
 				object.size,
 				object.rotation,

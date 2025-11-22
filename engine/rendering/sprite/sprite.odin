@@ -70,6 +70,10 @@ draw_sprite :: proc(
 	size: [2]f32,
 	rotation: f32,
 ) {
+	if texture == nil {
+		return
+	}
+
 	rm.use_shader(&sprite.shader)
 
 	model := linalg.MATRIX4F32_IDENTITY
