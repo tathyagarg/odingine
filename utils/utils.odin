@@ -10,10 +10,16 @@ import atl "../engine/atlas"
 import rm "../engine/resource_manager"
 import "./globals"
 
-ScriptProc :: proc(state: ^SharedContext, target: globals.RenderObjectHandle, action: i32)
+ScriptProc :: proc(
+	state: ^SharedContext,
+	target: globals.RenderObjectHandle,
+	action: i32,
+	args: rawptr,
+)
+
 RegisteredScript :: struct {
-	script_proc: ScriptProc,
-	target:      globals.RenderObjectHandle,
+	script: globals.ScriptHandle,
+	target: globals.RenderObjectHandle,
 }
 
 ScriptManager :: struct {

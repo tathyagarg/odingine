@@ -258,18 +258,35 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 
 			imgui.BeginGroup()
 			imgui.Text("Available Scripts:")
-			for script_handle, i in ctx.script_manager.scripts {
+			show_scripts: for script_handle, i in ctx.script_manager.scripts {
 				script := (^scripts.Script)(ctx.script_manager.scripts[i])
-				if slice.contains(focused.scripts[:], script_handle) {
-					continue
+
+				for j in 0 ..< len(focused.scripts) {
+					existing_script := focused.scripts[j]
+					if (^scripts.Script)(existing_script).name == script.name {
+						continue show_scripts
+					}
 				}
+
 				text := fmt.aprintf("%s##add_script_%s", script.name, script.name)
 
 				if imgui.Button(strings.clone_to_cstring(text)) {
-					append(&focused.scripts, script_handle)
-					fmt.println("Adding script:", script.name)
+
+					script_clone := new(scripts.Script)
+					script_clone.name = script.name
+					script_clone.description = script.description
+					// copy(script_clone.key_listeners, script.key_listeners)
+					script_clone.key_listeners = map[i32]utils.ScriptProc{}
 					for key, listener in script.key_listeners {
-						fmt.println("Registering key listener for key:", key, listener)
+						script_clone.key_listeners[key] = listener
+					}
+
+					script_clone.arguments = script.arguments
+					script_clone.argument_type = script.argument_type
+
+					append(&focused.scripts, globals.ScriptHandle(script_clone))
+					fmt.println("Adding script:", script.name)
+					for key, _ in script_clone.key_listeners {
 						if ctx.script_manager.registered_scripts[key] == nil {
 							ctx.script_manager.registered_scripts[key] =
 								[dynamic]utils.RegisteredScript{}
@@ -278,7 +295,7 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 						append(
 							&ctx.script_manager.registered_scripts[key],
 							utils.RegisteredScript {
-								script_proc = listener,
+								script = globals.ScriptHandle(script_clone),
 								target = ctx.focused_object,
 							},
 						)
@@ -297,6 +314,22 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 
 			}
 			imgui.EndGroup()
+
+			for script_handle, i in focused.scripts {
+				script := (^scripts.Script)(script_handle)
+				imgui.SeparatorText(
+					strings.clone_to_cstring(fmt.aprintf("Script: %s", script.name)),
+				)
+
+				switch script.argument_type {
+				case typeid_of(scripts.KeyboardMovementScriptInput):
+					args := (^scripts.KeyboardMovementScriptInput)(script.arguments)
+					imgui.InputFloat(
+						strings.clone_to_cstring(fmt.aprintf("Speed##%s_speed", script.name)),
+						&args.speed,
+					)
+				}
+			}
 		} else {
 			imgui.Text("No object selected.")
 		}

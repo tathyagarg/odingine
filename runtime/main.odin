@@ -54,8 +54,17 @@ key_callback :: proc "c" (
 
 	if (state.game_focused && ENVIRONMENT == .Development) || (ENVIRONMENT == .Production) {
 		if action == glfw.PRESS || action == glfw.REPEAT {
-			for registered_script in state.script_manager.registered_scripts[key] {
-				registered_script.script_proc(state, registered_script.target, action)
+			for registered_script in state.script_manager.registered_scripts[key] or_else {} {
+				script := (^scripts.Script)(registered_script.script)
+
+				script.key_listeners[key](
+					state,
+					registered_script.target,
+					action,
+					script.arguments,
+				)
+
+				// registered_script.script_proc(state, registered_script.target, action)
 			}
 		}
 	}
@@ -115,7 +124,8 @@ mouse_callback :: proc "c" (window: glfw.WindowHandle, button: i32, action: i32,
 				}
 
 				state.focused_object = nil
-			}}
+			}
+		}
 	}
 }
 
