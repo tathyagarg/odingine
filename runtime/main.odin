@@ -14,8 +14,12 @@ import gui "../engine/gui"
 import rendering "../engine/rendering"
 import sprites "../engine/rendering/sprite"
 import rm "../engine/resource_manager"
+import "../engine/scripts"
 import "../utils"
 import "../utils/globals"
+
+RenderObject :: rendering.RenderObject
+RendererContext :: rendering.RendererContext
 
 ENVIRONMENT :: globals.Environment.Development
 
@@ -33,9 +37,11 @@ key_callback :: proc "c" (
 	action: i32,
 	mods: i32,
 ) {
+	context = runtime.default_context()
 	imgui_glfw.KeyCallback(window, key, scancode, action, mods)
 
 	state := (^utils.SharedContext)(glfw.GetWindowUserPointer(window))
+
 	when (ENVIRONMENT == .Development) {
 		if key == glfw.KEY_ESCAPE && action == glfw.PRESS {
 			if state.game_focused {
@@ -46,10 +52,11 @@ key_callback :: proc "c" (
 		}
 	}
 
-	if state.game_focused {
-		if action == glfw.PRESS {
-			context = runtime.default_context()
-			fmt.println("Key pressed: ", key)
+	if (state.game_focused && ENVIRONMENT == .Development) || (ENVIRONMENT == .Production) {
+		if action == glfw.PRESS || action == glfw.REPEAT {
+			for registered_script in state.script_manager.registered_scripts[key] {
+				registered_script.script_proc(state, registered_script.target, action)
+			}
 		}
 	}
 }
@@ -61,42 +68,54 @@ mouse_callback :: proc "c" (window: glfw.WindowHandle, button: i32, action: i32,
 
 	context = runtime.default_context()
 	if action == glfw.PRESS {
-		// This position will be in window coordinates
-		raw_x, raw_y := glfw.GetCursorPos(window)
+		when (ENVIRONMENT == .Development) {
+			if (!state.game_focused) {
+				// This position will be in window coordinates
+				raw_x, raw_y := glfw.GetCursorPos(window)
 
-		scissor := rendering.get_scissor_bounds(
-			ENVIRONMENT,
-			state.window_size[0],
-			state.window_size[1],
-		)
+				scissor := rendering.get_scissor_bounds(
+					ENVIRONMENT,
+					state.window_size[0],
+					state.window_size[1],
+				)
 
-		x_off, y_off, width, height := scissor[0], scissor[1], scissor[2], scissor[3]
+				x_off, y_off, width, height := scissor[0], scissor[1], scissor[2], scissor[3]
 
-		x := (2 * raw_x - f64(x_off)) / 2 / globals.WINDOW_TO_SCREEN_SCALE
-		y := raw_y / globals.WINDOW_TO_SCREEN_SCALE
+				x := (2 * raw_x - f64(x_off)) / 2 / globals.WINDOW_TO_SCREEN_SCALE
+				y := raw_y / globals.WINDOW_TO_SCREEN_SCALE
 
-		layer_count := len(state.render_context.layers)
-
-		for i in 0 ..< layer_count {
-			layer := &state.render_context.layers[layer_count - 1 - i]
-
-			for &object in layer.objects {
-				if object.texture == nil {
-					continue
-				}
-
-				if x >= f64(object.position[0]) &&
-				   x <= f64(object.position[0] + object.size[0]) &&
-				   y >= f64(object.position[1]) &&
-				   y <= f64(object.position[1] + object.size[1]) {
-
-					state.focused_object = &object
+				if x < 0 ||
+				   x > f64(width) / 2 / globals.WINDOW_TO_SCREEN_SCALE ||
+				   y < 0 ||
+				   y > f64(height) * globals.WINDOW_TO_SCREEN_SCALE {
 					return
 				}
-			}
-		}
 
-		state.focused_object = nil
+				ctx := (^RendererContext)(state.render_context)
+
+				layer_count := len(ctx.layers)
+
+				for i in 0 ..< layer_count {
+					layer := &ctx.layers[layer_count - 1 - i]
+
+					for &object in layer.objects {
+						if object.texture == nil {
+							continue
+						}
+
+						if x >= f64(object.position[0]) &&
+						   x <= f64(object.position[0] + object.size[0]) &&
+						   y >= f64(object.position[1]) &&
+						   y <= f64(object.position[1] + object.size[1]) {
+
+							state.focused_object = globals.RenderObjectHandle(&object)
+							return
+						}
+					}
+				}
+
+				state.focused_object = nil
+			}}
 	}
 }
 
@@ -165,7 +184,7 @@ main :: proc() {
 	state := utils.default_shared_context()
 	state.window_size = [2]i32{w, h}
 	state.manager = &manager
-	state.render_context = &render_context
+	state.render_context = RendererContextHandle(&render_context)
 
 	state.event_handlers["save_atlas"] = proc(
 		state: ^utils.SharedContext,
@@ -176,7 +195,7 @@ main :: proc() {
 			rm.update_textures_from_atlas(state.manager, state.atlases["main"])
 		}
 
-		for &layer in state.render_context.layers {
+		for &layer in (^RendererContext)(state.render_context).layers {
 			for &object in layer.objects {
 				if object.texture.name == "" {
 					continue
@@ -186,6 +205,18 @@ main :: proc() {
 		}
 
 		return nil
+	}
+
+	loaded_scripts := [dynamic]scripts.Script{}
+	for script_proc in scripts.DEFUALT_SCRIPTS {
+		script := script_proc()
+		fmt.println("Loaded script: ", (scripts.Script)(script).name)
+		append(&loaded_scripts, script)
+	}
+
+	state.script_manager.scripts = make([]ScriptHandle, len(loaded_scripts))
+	for i in 0 ..< len(loaded_scripts) {
+		state.script_manager.scripts[i] = globals.ScriptHandle(&loaded_scripts[i])
 	}
 
 	state.event_handlers["load_atlas"] = proc(
@@ -238,7 +269,32 @@ main :: proc() {
 			texture  = texture,
 		}
 
-		append(&state.render_context.layers[state.add_object.layer].objects, new_object)
+		append(
+			&(^RendererContext)(state.render_context).layers[state.add_object.layer].objects,
+			new_object,
+		)
+		return nil
+	}
+
+	state.event_handlers["delete_object"] = proc(
+		state: ^utils.SharedContext,
+		args: ..any,
+	) -> utils.ErrorMessage {
+		if state.focused_object == nil {
+			return nil
+		}
+
+		ctx := (^RendererContext)(state.render_context)
+		for &layer in ctx.layers {
+			for i in 0 ..< len(layer.objects) {
+				if RenderObjectHandle(&layer.objects[i]) == state.focused_object {
+					ordered_remove(&layer.objects, i)
+					state.focused_object = nil
+					return nil
+				}
+			}
+		}
+
 		return nil
 	}
 

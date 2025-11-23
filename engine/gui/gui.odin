@@ -1,6 +1,7 @@
 package gui
 
 import "core:fmt"
+import "core:slice"
 import "core:sort"
 import "core:strings"
 
@@ -9,10 +10,16 @@ import "vendor:glfw"
 import rendering "../../engine/rendering"
 import imgui "../../third_party/imgui"
 import "../../utils"
+import "../../utils/globals"
+import "../scripts"
 
 COLOR_GREEN :: imgui.Vec4{0.2, 0.6, 0.2, 1.0}
 COLOR_GREEN_HOVERED :: imgui.Vec4{0.3, 0.7, 0.3, 1.0}
 COLOR_GREEN_ACTIVE :: imgui.Vec4{0.1, 0.5, 0.1, 1.0}
+
+COLOR_RED :: imgui.Vec4{0.6, 0.2, 0.2, 1.0}
+COLOR_RED_HOVERED :: imgui.Vec4{0.7, 0.3, 0.3, 1.0}
+COLOR_RED_ACTIVE :: imgui.Vec4{0.5, 0.1, 0.1, 1.0}
 
 COLOR_U32 :: imgui.GetColorU32ImVec4
 
@@ -102,7 +109,7 @@ general_information_window :: proc(
 			)
 
 			imgui.SeparatorText("Layer##layersep_addobject")
-			for &layer, i in ctx.render_context.layers {
+			for &layer, i in (^rendering.RendererContext)(ctx.render_context).layers {
 				if imgui.Selectable(
 					strings.clone_to_cstring(
 						fmt.aprintf("%s##%s_addobject", layer.name, layer.name),
@@ -132,14 +139,14 @@ general_information_window :: proc(
 		}
 
 		if (imgui.CollapsingHeader("Render Layers")) {
-			for &layer, i in ctx.render_context.layers {
+			for &layer, i in (^rendering.RendererContext)(ctx.render_context).layers {
 				if imgui.InputInt(
 					strings.clone_to_cstring(fmt.aprintf("%s##%s_layers", layer.name, layer.name)),
 					&layer.z_layer,
 				) {
 					// sort the layers based on their z_layer
 					sort.quick_sort_proc(
-						ctx.render_context.layers[:],
+						(^rendering.RendererContext)(ctx.render_context).layers[:],
 						proc(a: rendering.RenderLayer, b: rendering.RenderLayer) -> int {
 							return sort.compare_i32s(a.z_layer, b.z_layer)
 						},
@@ -186,35 +193,110 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 	)
 	if imgui.Begin("Object Details", nil, {.NoMove, .NoResize, .NoCollapse}) {
 		if ctx.focused_object != nil {
+			focused := (^rendering.RenderObject)(ctx.focused_object)
+
 			texture_size_x := 64
-			texture_size_y :=
-				64 * ctx.focused_object.texture.height / ctx.focused_object.texture.width
+			texture_size_y := 64 * focused.texture.height / focused.texture.width
 
 			imgui.Image(
-				u64(ctx.focused_object.texture.id),
+				u64(focused.texture.id),
 				imgui.Vec2{f32(texture_size_x), f32(texture_size_y)},
 			)
 
 			imgui.SameLine()
 
-			imgui.Text(
-				strings.clone_to_cstring(fmt.aprintf("Name: %s", ctx.focused_object.texture.name)),
-			)
+			imgui.Text(strings.clone_to_cstring(fmt.aprintf("Name: %s", focused.texture.name)))
 
 			imgui.InputFloat2(
 				strings.clone_to_cstring("Position##object_position_input"),
-				&ctx.focused_object.position,
+				&focused.position,
 			)
 
-			imgui.InputFloat2(
-				strings.clone_to_cstring("Size##object_size_input"),
-				&ctx.focused_object.size,
-			)
+			imgui.InputFloat2(strings.clone_to_cstring("Size##object_size_input"), &focused.size)
 
 			imgui.InputFloat(
 				strings.clone_to_cstring("Rotation##object_rotation_input"),
-				&ctx.focused_object.rotation,
+				&focused.rotation,
 			)
+
+			imgui.Spacing()
+			imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_RED))
+			imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_RED_HOVERED))
+			imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_RED_ACTIVE))
+			if imgui.Button(
+				"Delete Object##delete_object_button",
+				{imgui.GetContentRegionAvail()[0], 0},
+			) {
+				fmt.println("Delete Object button pressed")
+				err := ctx.event_handlers["delete_object"](ctx)
+				if err != nil {
+					ctx.error_message = fmt.aprintf("Failed to delete object: %s", err)
+					imgui.OpenPopup("Error")
+				} else {
+					ctx.focused_object = nil
+				}
+			}
+			imgui.PopStyleColor(3)
+
+			imgui.SeparatorText("Scripts")
+			imgui.BeginGroup()
+			imgui.Text("Attached Scripts:")
+			for script_handle, i in focused.scripts {
+				script := (^scripts.Script)(script_handle)
+
+				if imgui.Button(
+					strings.clone_to_cstring(
+						fmt.aprintf("%s##remove_script_%s", script.name, script.name),
+					),
+				) {
+					ordered_remove(&focused.scripts, i)
+				}
+			}
+			imgui.EndGroup()
+
+			imgui.SameLine()
+
+			imgui.BeginGroup()
+			imgui.Text("Available Scripts:")
+			for script_handle, i in ctx.script_manager.scripts {
+				script := (^scripts.Script)(ctx.script_manager.scripts[i])
+				if slice.contains(focused.scripts[:], script_handle) {
+					continue
+				}
+				text := fmt.aprintf("%s##add_script_%s", script.name, script.name)
+
+				if imgui.Button(strings.clone_to_cstring(text)) {
+					append(&focused.scripts, script_handle)
+					fmt.println("Adding script:", script.name)
+					for key, listener in script.key_listeners {
+						fmt.println("Registering key listener for key:", key, listener)
+						if ctx.script_manager.registered_scripts[key] == nil {
+							ctx.script_manager.registered_scripts[key] =
+								[dynamic]utils.RegisteredScript{}
+						}
+
+						append(
+							&ctx.script_manager.registered_scripts[key],
+							utils.RegisteredScript {
+								script_proc = listener,
+								target = ctx.focused_object,
+							},
+						)
+					}
+				}
+				imgui.SetItemTooltip(
+					strings.clone_to_cstring(
+						fmt.aprintf(
+							"%s\n%s\n%s",
+							script.name,
+							strings.repeat("-", len(script.name)),
+							script.description,
+						),
+					),
+				)
+
+			}
+			imgui.EndGroup()
 		} else {
 			imgui.Text("No object selected.")
 		}

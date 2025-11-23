@@ -18,6 +18,7 @@ RenderObject :: struct {
 	position: [2]f32,
 	size:     [2]f32,
 	rotation: f32,
+	scripts:  [dynamic]globals.ScriptHandle,
 }
 
 RenderLayer :: struct {

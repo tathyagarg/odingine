@@ -7,8 +7,20 @@ import "core:strings"
 import "vendor:glfw"
 
 import atl "../engine/atlas"
-import rendering "../engine/rendering"
 import rm "../engine/resource_manager"
+import "./globals"
+
+ScriptProc :: proc(state: ^SharedContext, target: globals.RenderObjectHandle, action: i32)
+RegisteredScript :: struct {
+	script_proc: ScriptProc,
+	target:      globals.RenderObjectHandle,
+}
+
+ScriptManager :: struct {
+	scripts:            []globals.ScriptHandle,
+	registered_scripts: map[i32][dynamic]RegisteredScript,
+}
+
 
 AddObject :: struct {
 	name:           cstring,
@@ -28,11 +40,13 @@ SharedContext :: struct {
 	atlases:        map[string]^atl.Atlas,
 	event_handlers: map[string]proc(state: ^SharedContext, args: ..any) -> ErrorMessage,
 	manager:        ^rm.ResourceManager,
-	render_context: ^rendering.RendererContext,
+	render_context: globals.RendererContextHandle,
 	add_object:     AddObject,
 	add_atlas:      AddAtlas,
 	error_message:  string,
-	focused_object: ^rendering.RenderObject,
+	focused_object: globals.RenderObjectHandle,
+	key_listeners:  map[int]proc(state: ^SharedContext, action: int),
+	script_manager: ScriptManager,
 }
 
 ErrorMessage :: enum {
@@ -67,6 +81,11 @@ default_shared_context :: proc() -> SharedContext {
 		},
 		error_message = "",
 		focused_object = nil,
+		key_listeners = map[int]proc(state: ^SharedContext, action: int){},
+		script_manager = ScriptManager {
+			scripts = []globals.ScriptHandle{},
+			registered_scripts = map[i32][dynamic]RegisteredScript{},
+		},
 	}
 }
 
