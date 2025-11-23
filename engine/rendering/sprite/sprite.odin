@@ -1,5 +1,6 @@
 package render_sprite
 
+import "core:fmt"
 import "core:math/linalg"
 
 import gl "vendor:OpenGL"
@@ -12,38 +13,40 @@ Sprite :: struct {
 	quad_vao: u32,
 }
 
+SQUARE_VERTICES :: [?]f32 {
+	0.0,
+	1.0,
+	0.0,
+	1.0,
+	1.0,
+	0.0,
+	1.0,
+	0.0,
+	0.0,
+	0.0,
+	0.0,
+	0.0,
+	0.0,
+	1.0,
+	0.0,
+	1.0,
+	1.0,
+	1.0,
+	1.0,
+	1.0,
+	1.0,
+	0.0,
+	1.0,
+	0.0,
+}
+
 initialize_sprite :: proc(manager: ^rm.ResourceManager, shader: ^rm.Shader) -> Sprite {
 	vbo: u32
 
 	sprite: Sprite
 	sprite.shader = shader^
 
-	vertices := [?]f32 {
-		0.0,
-		1.0,
-		0.0,
-		1.0,
-		1.0,
-		0.0,
-		1.0,
-		0.0,
-		0.0,
-		0.0,
-		0.0,
-		0.0,
-		0.0,
-		1.0,
-		0.0,
-		1.0,
-		1.0,
-		1.0,
-		1.0,
-		1.0,
-		1.0,
-		0.0,
-		1.0,
-		0.0,
-	}
+	vertices := SQUARE_VERTICES
 
 	gl.GenVertexArrays(1, &sprite.quad_vao)
 	gl.GenBuffers(1, &vbo)
@@ -74,6 +77,19 @@ draw_sprite :: proc(
 		return
 	}
 
+	if texture.name == "background" {
+		fmt.println(
+			"Drawing sprite: ",
+			texture.name,
+			" at position ",
+			position,
+			" with size ",
+			size,
+			" and rotation ",
+			rotation,
+		)
+	}
+
 	rm.use_shader(&sprite.shader)
 
 	model := linalg.MATRIX4F32_IDENTITY
@@ -85,12 +101,22 @@ draw_sprite :: proc(
 
 	model = mat_math.scale(model, [3]f32{size[0], size[1], 1.0})
 
+	// if texture.name == "background" {
+	// 	fmt.println("BACKGROUND MODEL MATRIX:")
+	// 	fmt.println(model)
+	// 	fmt.println("----")
+	// } else {
+	// 	fmt.println("Model matrix: ", model)
+	// }
+
 	rm.set_matrix4("model", &model, &sprite.shader)
 
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, texture.id)
 
 	gl.BindVertexArray(sprite.quad_vao)
+
+
 	gl.DrawArrays(gl.TRIANGLES, 0, 6)
 	gl.BindVertexArray(0)
 }

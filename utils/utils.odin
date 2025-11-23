@@ -32,6 +32,7 @@ SharedContext :: struct {
 	add_object:     AddObject,
 	add_atlas:      AddAtlas,
 	error_message:  string,
+	focused_object: ^rendering.RenderObject,
 }
 
 ErrorMessage :: enum {
@@ -64,6 +65,8 @@ default_shared_context :: proc() -> SharedContext {
 			name = strings.unsafe_string_to_cstring(string(make([]u8, 64)[:0])),
 			filepath = strings.unsafe_string_to_cstring(string(make([]u8, 256)[:0])),
 		},
+		error_message = "",
+		focused_object = nil,
 	}
 }
 

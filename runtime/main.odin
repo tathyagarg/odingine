@@ -17,9 +17,6 @@ import rm "../engine/resource_manager"
 import "../utils"
 import "../utils/globals"
 
-WINDOW_WIDTH :: 1600
-WINDOW_HEIGHT :: 900
-
 ENVIRONMENT :: globals.Environment.Development
 
 TILESET_TEXTURE_PATH :: "resources/atlases/01_grass"
@@ -27,7 +24,7 @@ TILESET_TEXTURE_PATH :: "resources/atlases/01_grass"
 BASE_SPRITE_VERTEX_SHADER :: #load("../resources/shaders/02_sprite/sprite.vert")
 BASE_SPRITE_FRAGMENT_SHADER :: #load("../resources/shaders/02_sprite/sprite.frag")
 
-TILE_SCALE :: 5.6
+TILE_SCALE :: 5
 
 key_callback :: proc "c" (
 	window: glfw.WindowHandle,
@@ -67,17 +64,22 @@ mouse_callback :: proc "c" (window: glfw.WindowHandle, button: i32, action: i32,
 		// This position will be in window coordinates
 		raw_x, raw_y := glfw.GetCursorPos(window)
 
-		x_off, y_off, width, height := rendering.get_scissor_bounds(
+		scissor := rendering.get_scissor_bounds(
 			ENVIRONMENT,
 			state.window_size[0],
 			state.window_size[1],
 		)
 
+		x_off, y_off, width, height := scissor[0], scissor[1], scissor[2], scissor[3]
 
 		x := (2 * raw_x - f64(x_off)) / 2 / globals.WINDOW_TO_SCREEN_SCALE
 		y := raw_y / globals.WINDOW_TO_SCREEN_SCALE
 
-		for &layer in state.render_context.layers {
+		layer_count := len(state.render_context.layers)
+
+		for i in 0 ..< layer_count {
+			layer := &state.render_context.layers[layer_count - 1 - i]
+
 			for &object in layer.objects {
 				if object.texture == nil {
 					continue
@@ -87,20 +89,20 @@ mouse_callback :: proc "c" (window: glfw.WindowHandle, button: i32, action: i32,
 				   x <= f64(object.position[0] + object.size[0]) &&
 				   y >= f64(object.position[1]) &&
 				   y <= f64(object.position[1] + object.size[1]) {
-					fmt.println(
-						"Clicked on object '",
-						object.texture.name,
-						"' in layer '",
-						layer.name,
-						"'",
-					)
+
+					state.focused_object = &object
+					return
 				}
 			}
 		}
+
+		state.focused_object = nil
 	}
 }
 
 main :: proc() {
+	using globals
+
 	glfw.Init()
 	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, 3)
 	glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, 3)
@@ -141,11 +143,24 @@ main :: proc() {
 		string(BASE_SPRITE_FRAGMENT_SHADER),
 		&projection,
 	)
+
+	sprite_shader := rm.get_shader(&manager, "sprite")
+	// render_context.background = imgui.Vec4{0.2, 0.3, 0.4, 1.0}
+	_res := rm.load_texture(&manager, "bg", "resources/textures/background.png")
+	fmt.println("Loaded background texture: ", _res)
+
+	render_context.background = &rendering.RenderObject {
+		sprite = sprites.initialize_sprite(&manager, &sprite_shader),
+		position = [2]f32{0.0, 0.0},
+		size = [2]f32{f32(WINDOW_WIDTH), f32(WINDOW_HEIGHT)},
+		rotation = 0.0,
+		texture = rm.get_texture(&manager, "bg"),
+	}
+
 	defer rendering.cleanup_renderer(&render_context)
 
-	rendering.add_layer(&render_context, "default", 0)
-	rendering.add_layer(&render_context, "background", 1)
-	rendering.add_layer(&render_context, "foreground", 2)
+	rendering.add_layer(&render_context, "background", 0)
+	rendering.add_layer(&render_context, "foreground", 1)
 
 	state := utils.default_shared_context()
 	state.window_size = [2]i32{w, h}
@@ -229,7 +244,6 @@ main :: proc() {
 
 	glfw.SetWindowUserPointer(window, &state)
 
-
 	res := atl.parse(TILESET_TEXTURE_PATH)
 	if res == nil {
 		fmt.println("Failed to initialize texture atlas")
@@ -239,8 +253,6 @@ main :: proc() {
 	atlas := res.?
 
 	rm.load_atlas(&manager, atlas)
-
-	sprite_shader := rm.get_shader(&manager, "sprite")
 
 	for tileset_id, i in atlas.presets["showcase_1"].tile_ids {
 		texture_name := ""
@@ -291,7 +303,8 @@ main :: proc() {
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
-	x, y, width, height := rendering.get_scissor_bounds(ENVIRONMENT, w, h)
+	scissor := rendering.get_scissor_bounds(ENVIRONMENT, w, h)
+	x, y, width, height := scissor[0], scissor[1], scissor[2], scissor[3]
 
 	glfw.SetKeyCallback(window, key_callback)
 	glfw.SetMouseButtonCallback(window, mouse_callback)

@@ -1,6 +1,7 @@
 package rendering
 
 import "core:fmt"
+import "core:sort"
 import "core:strings"
 
 import gl "vendor:OpenGL"
@@ -8,6 +9,8 @@ import gl "vendor:OpenGL"
 import "../../utils/globals"
 import render_sprite "../rendering/sprite"
 import rm "../resource_manager"
+
+import imgui "../../third_party/imgui"
 
 RenderObject :: struct {
 	sprite:   render_sprite.Sprite,
@@ -23,9 +26,15 @@ RenderLayer :: struct {
 	z_layer: i32,
 }
 
+Background :: union {
+	imgui.Vec4,
+	^RenderObject,
+}
+
 RendererContext :: struct {
-	manager: ^rm.ResourceManager,
-	layers:  [dynamic]RenderLayer,
+	manager:    ^rm.ResourceManager,
+	layers:     [dynamic]RenderLayer,
+	background: Background,
 	// objects: [dynamic]RenderObject,
 }
 
@@ -43,12 +52,28 @@ initialize_renderer :: proc(
 	rm.set_integer("image", 0, &shader)
 
 	layers: [dynamic]RenderLayer = {}
-	return RendererContext{manager = manager, layers = layers}
+	return RendererContext {
+		manager = manager,
+		layers = layers,
+		background = imgui.Vec4{0.2, 0.3, 0.4, 1.0},
+	}
 }
 
 render :: proc(ctx: ^RendererContext) {
-	gl.ClearColor(0.2, 0.3, 0.3, 1.0)
 	gl.Clear(gl.COLOR_BUFFER_BIT)
+	switch bg in ctx.background {
+	case imgui.Vec4:
+		gl.ClearColor(bg.x, bg.y, bg.z, bg.w)
+	case ^RenderObject:
+		render_sprite.draw_sprite(
+			ctx.manager,
+			&bg.sprite,
+			bg.texture,
+			[2]f32{0.0, 0.0},
+			[2]f32{f32(globals.WINDOW_WIDTH), f32(globals.WINDOW_HEIGHT)},
+			0.0,
+		)
+	}
 
 	for &layer in ctx.layers {
 		for &object in layer.objects {
@@ -62,7 +87,7 @@ render :: proc(ctx: ^RendererContext) {
 				object.texture,
 				object.position,
 				object.size,
-				object.rotation,
+				-object.rotation * globals.DEGREES_TO_RADIANS,
 			)
 		}
 	}
@@ -70,25 +95,19 @@ render :: proc(ctx: ^RendererContext) {
 
 cleanup_renderer :: proc(ctx: ^RendererContext) {}
 
-get_scissor_bounds :: proc(
-	env: globals.Environment,
-	width: i32,
-	height: i32,
-) -> (
-	i32,
-	i32,
-	i32,
-	i32,
-) {
+get_scissor_bounds :: proc(env: globals.Environment, width: i32, height: i32) -> [4]i32 {
 	if env == .Development {
 		w := f32(width)
 		h := f32(height)
 
-		return i32(
-			(w - (w * globals.WINDOW_TO_SCREEN_SCALE)) / 2,
-		), i32(h - (h * globals.WINDOW_TO_SCREEN_SCALE)), i32(w * globals.WINDOW_TO_SCREEN_SCALE), i32(h * globals.WINDOW_TO_SCREEN_SCALE)
+		return [4]i32 {
+			i32((w - (w * globals.WINDOW_TO_SCREEN_SCALE)) / 2),
+			i32(h - (h * globals.WINDOW_TO_SCREEN_SCALE)),
+			i32(w * globals.WINDOW_TO_SCREEN_SCALE),
+			i32(h * globals.WINDOW_TO_SCREEN_SCALE),
+		}
 	} else {
-		return 0, 0, width, height
+		return [4]i32{0, 0, width, height}
 	}
 }
 
@@ -100,4 +119,12 @@ add_layer :: proc(ctx: ^RendererContext, name: string, z_layer: i32) {
 		z_layer = z_layer,
 	}
 	append(&ctx.layers, new_layer)
+
+	sort.quick_sort_proc(ctx.layers[:], proc(a: RenderLayer, b: RenderLayer) -> int {
+		return int(a.z_layer - b.z_layer)
+	})
+
+	fmt.println("Added layer '", name, "' with z-layer ", z_layer)
+	fmt.println("Current layers:")
+	fmt.println(ctx.layers)
 }

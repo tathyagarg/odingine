@@ -19,17 +19,31 @@ COLOR_U32 :: imgui.GetColorU32ImVec4
 show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandle) {
 	ctx := (^utils.SharedContext)(glfw.GetWindowUserPointer(window))
 
-	imgui.SetNextWindowPos(imgui.Vec2{0, 0}, imgui.Cond.Always)
-	imgui.SetNextWindowSize(
-		imgui.Vec2{f32(window_width / 6), f32(window_height)},
-		imgui.Cond.Always,
-	)
-
 	imgui.PushStyleColor(
 		imgui.Col.WindowBg,
 		imgui.GetColorU32ImVec4(
 			imgui.Vec4{0.05, 0.05, 0.05, 1.0} if ctx.game_focused else imgui.Vec4{0.1, 0.1, 0.1, 1.0},
 		),
+	)
+
+	general_information_window(window_width, window_height, window)
+	mysterious_bottom_window(window_width, window_height, window)
+	object_details_window(window_width, window_height, window)
+
+	imgui.PopStyleColor(1)
+}
+
+general_information_window :: proc(
+	window_width: u32,
+	window_height: u32,
+	window: glfw.WindowHandle,
+) {
+	ctx := (^utils.SharedContext)(glfw.GetWindowUserPointer(window))
+
+	imgui.SetNextWindowPos(imgui.Vec2{0, 0}, imgui.Cond.Always)
+	imgui.SetNextWindowSize(
+		imgui.Vec2{f32(window_width / 6), f32(window_height)},
+		imgui.Cond.Always,
 	)
 
 	if imgui.Begin("Main Window", nil, {.NoMove, .NoResize, .NoCollapse}) {
@@ -160,6 +174,60 @@ show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandl
 
 	imgui.End()
 
+}
+
+object_details_window :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandle) {
+	ctx := (^utils.SharedContext)(glfw.GetWindowUserPointer(window))
+
+	imgui.SetNextWindowPos(imgui.Vec2{f32(5 * window_width / 6), 0}, imgui.Cond.Always)
+	imgui.SetNextWindowSize(
+		imgui.Vec2{f32(window_width / 6), f32(window_height)},
+		imgui.Cond.Always,
+	)
+	if imgui.Begin("Object Details", nil, {.NoMove, .NoResize, .NoCollapse}) {
+		if ctx.focused_object != nil {
+			texture_size_x := 64
+			texture_size_y :=
+				64 * ctx.focused_object.texture.height / ctx.focused_object.texture.width
+
+			imgui.Image(
+				u64(ctx.focused_object.texture.id),
+				imgui.Vec2{f32(texture_size_x), f32(texture_size_y)},
+			)
+
+			imgui.SameLine()
+
+			imgui.Text(
+				strings.clone_to_cstring(fmt.aprintf("Name: %s", ctx.focused_object.texture.name)),
+			)
+
+			imgui.InputFloat2(
+				strings.clone_to_cstring("Position##object_position_input"),
+				&ctx.focused_object.position,
+			)
+
+			imgui.InputFloat2(
+				strings.clone_to_cstring("Size##object_size_input"),
+				&ctx.focused_object.size,
+			)
+
+			imgui.InputFloat(
+				strings.clone_to_cstring("Rotation##object_rotation_input"),
+				&ctx.focused_object.rotation,
+			)
+		} else {
+			imgui.Text("No object selected.")
+		}
+	}
+
+	imgui.End()
+}
+
+mysterious_bottom_window :: proc(
+	window_width: u32,
+	window_height: u32,
+	window: glfw.WindowHandle,
+) {
 	imgui.SetNextWindowPos(
 		imgui.Vec2{f32(window_width / 6), f32(2 * window_height / 3)},
 		imgui.Cond.Always,
@@ -172,16 +240,4 @@ show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandl
 		imgui.Text("This is another window.")
 	}
 	imgui.End()
-
-	imgui.SetNextWindowPos(imgui.Vec2{f32(5 * window_width / 6), 0}, imgui.Cond.Always)
-	imgui.SetNextWindowSize(
-		imgui.Vec2{f32(window_width / 6), f32(window_height)},
-		imgui.Cond.Always,
-	)
-	if imgui.Begin("Third Window", nil, {.NoMove, .NoResize, .NoCollapse}) {
-		imgui.Text("This is the third window.")
-	}
-	imgui.End()
-
-	imgui.PopStyleColor(1)
 }
