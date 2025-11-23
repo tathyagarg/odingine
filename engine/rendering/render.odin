@@ -12,6 +12,8 @@ import rm "../resource_manager"
 
 import imgui "../../third_party/imgui"
 
+TextureType :: globals.TextureType
+
 RenderObject :: struct {
 	sprite:   render_sprite.Sprite,
 	texture:  ^rm.Texture,

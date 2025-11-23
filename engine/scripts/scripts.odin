@@ -2,12 +2,19 @@
 
 package scripts
 
+import "base:runtime"
+import "core:fmt"
+import "core:reflect"
+
 import "../../utils"
 import "../../utils/globals"
 import "../rendering"
+
 import "core:mem"
 
 import "vendor:glfw"
+
+TextureType :: globals.TextureType
 
 Script :: struct {
 	name:                 cstring,
@@ -19,7 +26,11 @@ Script :: struct {
 }
 
 KeyboardMovementScriptInput :: struct {
-	speed: f32,
+	speed:         f32,
+	front_texture: TextureType,
+	left_texture:  TextureType,
+	right_texture: TextureType,
+	back_texture:  TextureType,
 }
 
 DEFUALT_SCRIPTS :: []proc() -> Script{KeyboardMovementScript, MouseMovementScript}
@@ -27,12 +38,43 @@ DEFUALT_SCRIPTS :: []proc() -> Script{KeyboardMovementScript, MouseMovementScrip
 KeyboardMovementScript :: proc() -> Script {
 	arguments := new(KeyboardMovementScriptInput)
 	arguments.speed = 20.0
+	// arguments.front_sprite_path = strings.unsafe_string_to_cstring(string(make([]u8, 64)[:0]))
+	// arguments.left_sprite_path = strings.unsafe_string_to_cstring(string(make([]u8, 64)[:0]))
+	// arguments.right_sprite_path = strings.unsafe_string_to_cstring(string(make([]u8, 64)[:0]))
+	// arguments.back_sprite_path = strings.unsafe_string_to_cstring(string(make([]u8, 64)[:0]))
 
-	argument_descriptors := make([]utils.ArgumentDescriptor, 1)
+	field_count := 5
+
+	argument_descriptors := make([]utils.ArgumentDescriptor, field_count)
+
 	argument_descriptors[0] = utils.ArgumentDescriptor {
 		name      = "Speed",
 		offset    = offset_of(KeyboardMovementScriptInput, speed),
 		type_info = typeid_of(f32),
+	}
+
+	argument_descriptors[1] = utils.ArgumentDescriptor {
+		name      = "Front Texture",
+		offset    = offset_of(KeyboardMovementScriptInput, front_texture),
+		type_info = typeid_of(TextureType),
+	}
+
+	argument_descriptors[2] = utils.ArgumentDescriptor {
+		name      = "Left Texture",
+		offset    = offset_of(KeyboardMovementScriptInput, left_texture),
+		type_info = typeid_of(TextureType),
+	}
+
+	argument_descriptors[3] = utils.ArgumentDescriptor {
+		name      = "Right Texture",
+		offset    = offset_of(KeyboardMovementScriptInput, right_texture),
+		type_info = typeid_of(TextureType),
+	}
+
+	argument_descriptors[4] = utils.ArgumentDescriptor {
+		name      = "Back Texture",
+		offset    = offset_of(KeyboardMovementScriptInput, back_texture),
+		type_info = typeid_of(TextureType),
 	}
 
 	return Script {
@@ -53,6 +95,10 @@ KeyboardMovementScript :: proc() -> Script {
 
 				if target != nil && (action == glfw.PRESS || action == glfw.REPEAT) {
 					target.position[1] -= args.speed
+					texture := utils.texture_at_index(state.manager.textures, args.back_texture)
+					if texture != nil {
+						target.texture = texture
+					}
 				}
 			},
 			glfw.KEY_S = proc(
@@ -66,6 +112,10 @@ KeyboardMovementScript :: proc() -> Script {
 
 				if target != nil && (action == glfw.PRESS || action == glfw.REPEAT) {
 					target.position[1] += args.speed
+					texture := utils.texture_at_index(state.manager.textures, args.front_texture)
+					if texture != nil {
+						target.texture = texture
+					}
 				}
 			},
 			glfw.KEY_A = proc(
@@ -79,6 +129,10 @@ KeyboardMovementScript :: proc() -> Script {
 
 				if target != nil && (action == glfw.PRESS || action == glfw.REPEAT) {
 					target.position[0] -= args.speed
+					texture := utils.texture_at_index(state.manager.textures, args.left_texture)
+					if texture != nil {
+						target.texture = texture
+					}
 				}
 			},
 			glfw.KEY_D = proc(
@@ -92,6 +146,10 @@ KeyboardMovementScript :: proc() -> Script {
 
 				if target != nil && (action == glfw.PRESS || action == glfw.REPEAT) {
 					target.position[0] += args.speed
+					texture := utils.texture_at_index(state.manager.textures, args.right_texture)
+					if texture != nil {
+						target.texture = texture
+					}
 				}
 			},
 		},
@@ -107,14 +165,16 @@ MouseMovementScript :: proc() -> Script {
 }
 
 clone_script :: proc(original: ^Script) -> ^Script {
+	size := reflect.size_of_typeid(original.argument_type)
+	align := reflect.align_of_typeid(original.argument_type)
+
 	// Create a new instance of the argument struct
-	new_arguments, err := mem.alloc(size_of(original.argument_type))
+	new_arguments, err := mem.alloc(size, align)
 	if err != nil {
 		panic("Failed to allocate memory for script arguments.")
 	}
 
-	// Copy the contents of the original arguments to the new instance
-	mem.copy(new_arguments, original.arguments, size_of(original.argument_type))
+	mem.copy(new_arguments, original.arguments, size)
 
 	// Create a new Script instance with copied data
 	new_script := new(Script)

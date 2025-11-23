@@ -154,6 +154,51 @@ general_information_window :: proc(
 				}
 			}
 		}
+
+		if (imgui.CollapsingHeader("Textures")) {
+			names: [^]cstring
+			raw_names := [dynamic]cstring{}
+
+			for name, texture in ctx.manager.textures {
+				append(&raw_names, strings.clone_to_cstring(name))
+			}
+
+			names = raw_data(raw_names[:])
+
+			selected: i32 = 0
+
+			imgui.ListBox(
+				strings.clone_to_cstring("Loaded Textures##loaded_textures_listbox"),
+				&selected,
+				names[:],
+				i32(len(ctx.manager.textures)),
+				8,
+			)
+
+			imgui.SeparatorText("Load Texture")
+			imgui.InputText(
+				strings.clone_to_cstring("Name##texture_name"),
+				ctx.add_object.name,
+				64,
+			)
+
+			imgui.InputText(
+				strings.clone_to_cstring("Source##texture_path"),
+				ctx.add_object.texture_source,
+				256,
+			)
+
+			if imgui.Button("Load Texture", {imgui.GetContentRegionAvail()[0], 0}) {
+				err := ctx.event_handlers["load_texture"](ctx)
+				if err != nil {
+					ctx.error_message = fmt.aprintf("Failed to load texture: %s", err)
+					imgui.OpenPopup("Error")
+				} else {
+					ctx.add_object.name = utils.empty_cstring(64)
+					ctx.add_object.texture_source = utils.empty_cstring(256)
+				}
+			}
+		}
 	}
 
 	if imgui.BeginPopupModal("Error", nil, {.AlwaysAutoResize}) {
@@ -271,7 +316,6 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 				text := fmt.aprintf("%s##add_script_%s", script.name, script.name)
 
 				if imgui.Button(strings.clone_to_cstring(text)) {
-
 					script_clone := scripts.clone_script(script)
 
 					append(&focused.scripts, globals.ScriptHandle(script_clone))
@@ -280,6 +324,25 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 						if ctx.script_manager.registered_scripts[key] == nil {
 							ctx.script_manager.registered_scripts[key] =
 								[dynamic]utils.RegisteredScript{}
+						}
+
+						switch script_clone.argument_type {
+						case typeid_of(scripts.KeyboardMovementScriptInput):
+							args := (^scripts.KeyboardMovementScriptInput)(script_clone.arguments)
+							this_texture := focused.texture.name
+
+							textures := ctx.manager.textures
+							i := 0
+							for name, texture in textures {
+								if texture.name == this_texture {
+									args.front_texture = (scripts.TextureType)(i)
+									args.left_texture = (scripts.TextureType)(i)
+									args.right_texture = (scripts.TextureType)(i)
+									args.back_texture = (scripts.TextureType)(i)
+									break
+								}
+								i += 1
+							}
 						}
 
 						append(
@@ -315,7 +378,7 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 					switch arg_desc.type_info {
 					case typeid_of(f32):
 						args := (^scripts.KeyboardMovementScriptInput)(script.arguments)
-						ptr := rawptr(uintptr(args) + arg_desc.offset)
+						ptr := rawptr(uintptr(script.arguments) + arg_desc.offset)
 						imgui.InputFloat(
 							strings.clone_to_cstring(
 								fmt.aprintf(
@@ -326,6 +389,42 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 								),
 							),
 							(^f32)(ptr),
+						)
+					case typeid_of(cstring):
+						args := (^scripts.KeyboardMovementScriptInput)(script.arguments)
+
+						ptr := rawptr(uintptr(script.arguments) + arg_desc.offset)
+						imgui.InputText(
+							strings.clone_to_cstring(
+								fmt.aprintf(
+									"%s##%s_%s",
+									arg_desc.name,
+									script.name,
+									arg_desc.name,
+								),
+							),
+							(^cstring)(ptr)^,
+							256,
+						)
+					case typeid_of(scripts.TextureType):
+						args := (^scripts.KeyboardMovementScriptInput)(script.arguments)
+
+						ptr := rawptr(uintptr(script.arguments) + arg_desc.offset)
+
+						keys, err := slice.map_keys(ctx.manager.textures)
+						names := strings.join(keys, "\x00")
+
+						imgui.Combo(
+							strings.clone_to_cstring(
+								fmt.aprintf(
+									"%s##%s_%s",
+									arg_desc.name,
+									script.name,
+									arg_desc.name,
+								),
+							),
+							(^i32)(ptr),
+							strings.clone_to_cstring(names),
 						)
 					}
 				}

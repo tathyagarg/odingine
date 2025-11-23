@@ -57,8 +57,6 @@ key_callback :: proc "c" (
 			for registered_script in state.script_manager.registered_scripts[key] or_else {} {
 				script := (^scripts.Script)(registered_script.script)
 
-				fmt.println("Script: ", script)
-
 				script.key_listeners[key](
 					state,
 					registered_script.target,
@@ -223,6 +221,12 @@ main :: proc() {
 	for script_proc in scripts.DEFUALT_SCRIPTS {
 		script := script_proc()
 		fmt.println("Loaded script: ", (scripts.Script)(script).name)
+		if (scripts.Script)(script).name == "KeyboardMovement" {
+			fmt.println(
+				"Arguments: ",
+				((^scripts.KeyboardMovementScriptInput)((scripts.Script)(script).arguments))^,
+			)
+		}
 		append(&loaded_scripts, script)
 	}
 
@@ -305,6 +309,27 @@ main :: proc() {
 					return nil
 				}
 			}
+		}
+
+		return nil
+	}
+
+	state.event_handlers["load_texture"] = proc(
+		state: ^utils.SharedContext,
+		args: ..any,
+	) -> utils.ErrorMessage {
+		name := state.add_object.name
+		texture_source := state.add_object.texture_source
+
+		if len(name) == 0 || len(texture_source) == 0 {
+			fmt.println("Texture name and source cannot be empty.")
+			return .EmptyNameOrTextureSource
+		}
+
+		res := rm.load_texture(state.manager, string(name), string(texture_source), true, true)
+		if res == nil {
+			fmt.println("Failed to load texture from ", texture_source)
+			return .FailedToLoadTexture
 		}
 
 		return nil

@@ -143,3 +143,21 @@ window_to_screen_coordinates :: proc(
 
 	return [2]f32{screen_x, screen_y}
 }
+
+texture_at_index :: proc(
+	textures: map[string]^rm.Texture,
+	index: globals.TextureType,
+) -> ^rm.Texture {
+	i := 0
+	for _, texture in textures {
+		if i == int(index) {
+			return texture
+		}
+		i += 1
+	}
+	return nil
+}
+
+empty_cstring :: proc(length: int) -> cstring {
+	return strings.unsafe_string_to_cstring(string(make([]u8, length)[:0]))
+}

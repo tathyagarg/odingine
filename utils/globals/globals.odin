@@ -14,3 +14,5 @@ Environment :: enum {
 	Development,
 	Production,
 }
+
+TextureType :: distinct i32

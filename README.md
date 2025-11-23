@@ -4,6 +4,8 @@
 
 2D Game Engine written in Odin using OpenGL and GLFW
 
+![Preview](assets/preview.png)
+
 ## .atlas Specification
 
 - The `.atlas` file format is used to define texture atlases for use in the Odingine game engine. A texture atlas is a single image file that contains multiple smaller images (tiles) packed together. This allows for more efficient rendering by reducing the number of texture bindings required during rendering.
