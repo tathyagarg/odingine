@@ -10,6 +10,12 @@ import atl "../engine/atlas"
 import rm "../engine/resource_manager"
 import "./globals"
 
+ArgumentDescriptor :: struct {
+	name:      string,
+	offset:    uintptr,
+	type_info: typeid,
+}
+
 ScriptProc :: proc(
 	state: ^SharedContext,
 	target: globals.RenderObjectHandle,

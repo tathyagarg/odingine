@@ -272,17 +272,7 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 
 				if imgui.Button(strings.clone_to_cstring(text)) {
 
-					script_clone := new(scripts.Script)
-					script_clone.name = script.name
-					script_clone.description = script.description
-					// copy(script_clone.key_listeners, script.key_listeners)
-					script_clone.key_listeners = map[i32]utils.ScriptProc{}
-					for key, listener in script.key_listeners {
-						script_clone.key_listeners[key] = listener
-					}
-
-					script_clone.arguments = script.arguments
-					script_clone.argument_type = script.argument_type
+					script_clone := scripts.clone_script(script)
 
 					append(&focused.scripts, globals.ScriptHandle(script_clone))
 					fmt.println("Adding script:", script.name)
@@ -321,14 +311,33 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 					strings.clone_to_cstring(fmt.aprintf("Script: %s", script.name)),
 				)
 
-				switch script.argument_type {
-				case typeid_of(scripts.KeyboardMovementScriptInput):
-					args := (^scripts.KeyboardMovementScriptInput)(script.arguments)
-					imgui.InputFloat(
-						strings.clone_to_cstring(fmt.aprintf("Speed##%s_speed", script.name)),
-						&args.speed,
-					)
+				for arg_desc in script.argument_descriptors {
+					switch arg_desc.type_info {
+					case typeid_of(f32):
+						args := (^scripts.KeyboardMovementScriptInput)(script.arguments)
+						ptr := rawptr(uintptr(args) + arg_desc.offset)
+						imgui.InputFloat(
+							strings.clone_to_cstring(
+								fmt.aprintf(
+									"%s##%s_%s",
+									arg_desc.name,
+									script.name,
+									arg_desc.name,
+								),
+							),
+							(^f32)(ptr),
+						)
+					}
 				}
+
+				// switch script.argument_type {
+				// case typeid_of(scripts.KeyboardMovementScriptInput):
+				// 	args := (^scripts.KeyboardMovementScriptInput)(script.arguments)
+				// 	imgui.InputFloat(
+				// 		strings.clone_to_cstring(fmt.aprintf("Speed##%s_speed", script.name)),
+				// 		&args.speed,
+				// 	)
+				// }
 			}
 		} else {
 			imgui.Text("No object selected.")

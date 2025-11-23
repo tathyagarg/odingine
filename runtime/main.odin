@@ -57,6 +57,8 @@ key_callback :: proc "c" (
 			for registered_script in state.script_manager.registered_scripts[key] or_else {} {
 				script := (^scripts.Script)(registered_script.script)
 
+				fmt.println("Script: ", script)
+
 				script.key_listeners[key](
 					state,
 					registered_script.target,
