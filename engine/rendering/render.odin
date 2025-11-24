@@ -15,6 +15,7 @@ import imgui "../../third_party/imgui"
 TextureType :: globals.TextureType
 
 RenderObject :: struct {
+	name:     string,
 	sprite:   render_sprite.Sprite,
 	texture:  ^rm.Texture,
 	position: [2]f32,

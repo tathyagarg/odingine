@@ -11,6 +11,7 @@ import rendering "../../engine/rendering"
 import imgui "../../third_party/imgui"
 import "../../utils"
 import "../../utils/globals"
+import rm "../resource_manager"
 import "../scripts"
 
 COLOR_GREEN :: imgui.Vec4{0.2, 0.6, 0.2, 1.0}
@@ -22,6 +23,43 @@ COLOR_RED_HOVERED :: imgui.Vec4{0.7, 0.3, 0.3, 1.0}
 COLOR_RED_ACTIVE :: imgui.Vec4{0.5, 0.1, 0.1, 1.0}
 
 COLOR_U32 :: imgui.GetColorU32ImVec4
+
+texture_input :: proc(
+	combo_id: cstring,
+	label: cstring,
+	texture_manager: ^rm.TextureManager,
+	ptr: rawptr,
+) {
+	imgui.PushID(combo_id)
+
+	if imgui.BeginCombo(label, strings.clone_to_cstring(texture_manager.keys[(^i32)(ptr)^])) {
+		@(static) filter: imgui.TextFilter
+		if imgui.IsWindowAppearing() {
+			imgui.SetKeyboardFocusHere()
+			imgui.TextFilter_Clear(&filter)
+		}
+
+		imgui.TextFilter_Draw(&filter, "##Filter", -1)
+
+		for texture_name, texture_id in texture_manager.keys {
+			if imgui.TextFilter_PassFilter(&filter, strings.clone_to_cstring(texture_name)) {
+				imgui.PushID(
+					strings.clone_to_cstring(fmt.aprintf("%s_%s", combo_id, texture_name)),
+				)
+				if imgui.Selectable(
+					strings.clone_to_cstring(texture_name),
+					(^i32)(ptr)^ == i32(texture_id),
+				) {
+					(^scripts.TextureType)(ptr)^ = scripts.TextureType(texture_id)
+				}
+				imgui.PopID()
+			}
+		}
+		imgui.EndCombo()
+	}
+	imgui.PopID()
+
+}
 
 show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandle) {
 	ctx := (^utils.SharedContext)(glfw.GetWindowUserPointer(window))
@@ -54,6 +92,14 @@ general_information_window :: proc(
 	)
 
 	if imgui.Begin("Main Window", nil, {.NoMove, .NoResize, .NoCollapse}) {
+		if (imgui.BeginMenu("Texture")) {
+			if (imgui.MenuItem("Load Texture")) {
+				fmt.println("Opening Load Texture Popup")
+				ctx.open_popups["load_texture"] = true
+			}
+			imgui.EndMenu()
+		}
+
 		imgui.Checkbox("Game focused?", &ctx.game_focused)
 
 		if (imgui.CollapsingHeader("Texture Atlases")) {
@@ -97,10 +143,11 @@ general_information_window :: proc(
 				256,
 			)
 
-			imgui.InputText(
-				strings.clone_to_cstring("Source##object_path"),
-				ctx.add_object.texture_source,
-				256,
+			texture_input(
+				strings.clone_to_cstring("object_texture_input"),
+				strings.clone_to_cstring("Texture##object_texture"),
+				&ctx.manager.texture_manager,
+				rawptr(&ctx.add_object.texture),
 			)
 
 			imgui.InputFloat2(
@@ -136,6 +183,8 @@ general_information_window :: proc(
 				}
 			}
 			imgui.PopStyleColor(3)
+
+			imgui.Spacing()
 		}
 
 		if (imgui.CollapsingHeader("Render Layers")) {
@@ -159,7 +208,7 @@ general_information_window :: proc(
 			names: [^]cstring
 			raw_names := [dynamic]cstring{}
 
-			for name, texture in ctx.manager.textures {
+			for name in ctx.manager.texture_manager.keys {
 				append(&raw_names, strings.clone_to_cstring(name))
 			}
 
@@ -171,20 +220,20 @@ general_information_window :: proc(
 				strings.clone_to_cstring("Loaded Textures##loaded_textures_listbox"),
 				&selected,
 				names[:],
-				i32(len(ctx.manager.textures)),
+				i32(len(ctx.manager.texture_manager.keys)),
 				8,
 			)
 
 			imgui.SeparatorText("Load Texture")
 			imgui.InputText(
 				strings.clone_to_cstring("Name##texture_name"),
-				ctx.add_object.name,
+				ctx.add_texture.name,
 				64,
 			)
 
 			imgui.InputText(
 				strings.clone_to_cstring("Source##texture_path"),
-				ctx.add_object.texture_source,
+				ctx.add_texture.source,
 				256,
 			)
 
@@ -194,35 +243,107 @@ general_information_window :: proc(
 					ctx.error_message = fmt.aprintf("Failed to load texture: %s", err)
 					imgui.OpenPopup("Error")
 				} else {
-					ctx.add_object.name = utils.empty_cstring(64)
-					ctx.add_object.texture_source = utils.empty_cstring(256)
+					ctx.add_texture.name = utils.empty_cstring(64)
+					ctx.add_texture.source = utils.empty_cstring(256)
 				}
 			}
 		}
 	}
 
-	if imgui.BeginPopupModal("Error", nil, {.AlwaysAutoResize}) {
-		imgui.TextWrapped(strings.clone_to_cstring(ctx.error_message))
-		imgui.Separator()
+	if ctx.open_popups["load_texture"] or_else false {
+		imgui.SetNextWindowFocus()
+		imgui.SetNextWindowPos(imgui.GetMainViewport().Pos)
+		imgui.SetNextWindowSize(imgui.GetMainViewport().Size)
 
-		label: cstring = "OK"
+		pos := imgui.GetMainViewport().Pos
+		size := imgui.GetMainViewport().Size
 
-		size: f32 = f32(ctx.window_size[0]) / 12.0
-		available := imgui.GetContentRegionAvail().x
+		modal_size := imgui.Vec2{400, 200}
+		imgui.SetNextWindowPos(
+			imgui.Vec2 {
+				pos.x + size.x / 2 - modal_size.x / 2,
+				pos.y + size.y / 2 - modal_size.y / 2,
+			},
+			imgui.Cond.Always,
+		)
+		imgui.SetNextWindowSize(modal_size, imgui.Cond.Always)
 
-		offset := (available - size) / 2
-		imgui.SetCursorPosX(imgui.GetCursorPosX() + offset)
+		if imgui.Begin("Load Texture Modal", nil, {.NoResize, .NoCollapse}) {
+			imgui.Text("Load texture")
 
-		imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_GREEN))
-		imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_GREEN_HOVERED))
-		imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_GREEN_ACTIVE))
-		if imgui.Button(label, imgui.Vec2{size, 0}) {
-			ctx.error_message = ""
-			imgui.CloseCurrentPopup()
+			if ctx.manager.preview_texture != nil {
+				preview_texture := (^rm.Texture)(ctx.manager.preview_texture)
+				texture_size_x := 64
+				texture_size_y := 64 * preview_texture.height / preview_texture.width
+
+				imgui.Image(
+					u64(preview_texture.id),
+					imgui.Vec2{f32(texture_size_x), f32(texture_size_y)},
+				)
+			} else {
+				imgui.Text("No preview available")
+			}
+
+			imgui.SameLine()
+
+			imgui.BeginGroup()
+			imgui.InputText("Name", ctx.add_texture.name, 64)
+			imgui.InputText("Source", ctx.add_texture.source, 256)
+			imgui.EndGroup()
+
+			if imgui.Button("Preview", imgui.Vec2{imgui.GetContentRegionAvail().x / 2 - 5, 0}) {
+				err := ctx.event_handlers["load_texture_preview"](ctx)
+				if err != nil {
+					ctx.error_message = fmt.aprintf("Failed to preview texture: %s", err)
+				}
+			}
+
+			imgui.SameLine()
+
+			if imgui.Button("Load", imgui.Vec2{imgui.GetContentRegionAvail().x, 0}) {
+				ctx.event_handlers["make_texture_permanent_if_preview"](ctx)
+				err := ctx.event_handlers["load_texture"](ctx)
+				if err != nil {
+					ctx.error_message = fmt.aprintf("Failed to load texture: %s", err)
+				} else {
+					ctx.open_popups["load_texture"] = false
+
+					ctx.add_texture.name = utils.empty_cstring(64)
+					ctx.add_texture.source = utils.empty_cstring(256)
+				}
+			}
+
+			if imgui.Button("Cancel") {
+				ctx.open_popups["load_texture"] = false
+
+				ctx.add_texture.name = utils.empty_cstring(64)
+				ctx.add_texture.source = utils.empty_cstring(256)
+			}
+
+			imgui.End()
 		}
-		imgui.PopStyleColor(3)
-		imgui.EndPopup()
 	}
+
+	// if imgui.BeginPopupModal("Error", nil, {.AlwaysAutoResize}) {
+	// 	imgui.TextWrapped(strings.clone_to_cstring(ctx.error_message))
+	// 	imgui.Separator()
+
+	// 	size: f32 = f32(ctx.window_size[0]) / 12.0
+	// 	available := imgui.GetContentRegionAvail().x
+
+	// 	offset := (available - size) / 2
+	// 	imgui.SetCursorPosX(imgui.GetCursorPosX() + offset)
+
+	// 	imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_GREEN))
+	// 	imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_GREEN_HOVERED))
+	// 	imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_GREEN_ACTIVE))
+	// 	if imgui.Button("OK", imgui.Vec2{size, 0}) {
+	// 		ctx.error_message = ""
+	// 		imgui.CloseCurrentPopup()
+	// 	}
+	// 	imgui.PopStyleColor(3)
+	// 	imgui.EndPopup()
+	// }
 
 	imgui.End()
 
@@ -250,7 +371,12 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 
 			imgui.SameLine()
 
-			imgui.Text(strings.clone_to_cstring(fmt.aprintf("Name: %s", focused.texture.name)))
+			imgui.BeginGroup()
+
+			imgui.Text(strings.clone_to_cstring(fmt.aprintf("Name: %s", focused.name)))
+			imgui.Text(strings.clone_to_cstring(fmt.aprintf("Texture: %s", focused.texture.name)))
+
+			imgui.EndGroup()
 
 			imgui.InputFloat2(
 				strings.clone_to_cstring("Position##object_position_input"),
@@ -265,6 +391,7 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 			)
 
 			imgui.Spacing()
+
 			imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_RED))
 			imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_RED_HOVERED))
 			imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_RED_ACTIVE))
@@ -331,17 +458,14 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 							args := (^scripts.KeyboardMovementScriptInput)(script_clone.arguments)
 							this_texture := focused.texture.name
 
-							textures := ctx.manager.textures
-							i := 0
-							for name, texture in textures {
-								if texture.name == this_texture {
-									args.front_texture = (scripts.TextureType)(i)
-									args.left_texture = (scripts.TextureType)(i)
-									args.right_texture = (scripts.TextureType)(i)
-									args.back_texture = (scripts.TextureType)(i)
+							for texture_name, texture_id in ctx.manager.texture_manager.keys {
+								if texture_name == this_texture {
+									args.front_texture = (scripts.TextureType)(texture_id)
+									args.left_texture = (scripts.TextureType)(texture_id)
+									args.right_texture = (scripts.TextureType)(texture_id)
+									args.back_texture = (scripts.TextureType)(texture_id)
 									break
 								}
-								i += 1
 							}
 						}
 
@@ -352,6 +476,7 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 								target = ctx.focused_object,
 							},
 						)
+						fmt.println("Registered script for key:", key)
 					}
 				}
 				imgui.SetItemTooltip(
@@ -411,10 +536,13 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 
 						ptr := rawptr(uintptr(script.arguments) + arg_desc.offset)
 
-						keys, err := slice.map_keys(ctx.manager.textures)
-						names := strings.join(keys, "\x00")
+						keys := ctx.manager.texture_manager.keys
+						names := strings.join(keys[:], "\x00")
 
-						imgui.Combo(
+						texture_input(
+							strings.clone_to_cstring(
+								fmt.aprintf("%s_%s", script.name, arg_desc.name),
+							),
 							strings.clone_to_cstring(
 								fmt.aprintf(
 									"%s##%s_%s",
@@ -423,9 +551,70 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 									arg_desc.name,
 								),
 							),
-							(^i32)(ptr),
-							strings.clone_to_cstring(names),
+							&ctx.manager.texture_manager,
+							ptr,
 						)
+
+					// imgui.PushID(
+					// 	strings.clone_to_cstring(
+					// 		(fmt.aprintf("%s_%s", script.name, arg_desc.name)),
+					// 	),
+					// )
+
+					// if imgui.BeginCombo(
+					// 	strings.clone_to_cstring(arg_desc.name),
+					// 	strings.clone_to_cstring(
+					// 		ctx.manager.texture_manager.keys[(^i32)(ptr)^],
+					// 	),
+					// 	{.WidthFitPreview},
+					// ) {
+					// 	@(static) filter: imgui.TextFilter
+					// 	if imgui.IsWindowAppearing() {
+					// 		imgui.SetKeyboardFocusHere()
+					// 		imgui.TextFilter_Clear(&filter)
+					// 	}
+
+					// 	imgui.TextFilter_Draw(&filter, "##Filter", -1)
+
+					// 	for texture_name, texture_id in ctx.manager.texture_manager.keys {
+					// 		if imgui.TextFilter_PassFilter(
+					// 			&filter,
+					// 			strings.clone_to_cstring(texture_name),
+					// 		) {
+					// 			imgui.PushID(
+					// 				strings.clone_to_cstring(
+					// 					fmt.aprintf("%s_%s", script.name, arg_desc.name),
+					// 				),
+					// 			)
+					// 			if imgui.Selectable(
+					// 				strings.clone_to_cstring(texture_name),
+					// 				(^i32)(ptr)^ == i32(texture_id),
+					// 			) {
+					// 				(^scripts.TextureType)(ptr)^ = scripts.TextureType(
+					// 					texture_id,
+					// 				)
+					// 			}
+					// 			imgui.PopID()
+
+
+					// 		}
+					// 	}
+					// 	imgui.EndCombo()
+					// }
+					// imgui.PopID()
+
+					// imgui.Combo(
+					// 	strings.clone_to_cstring(
+					// 		fmt.aprintf(
+					// 			"%s##%s_%s",
+					// 			arg_desc.name,
+					// 			script.name,
+					// 			arg_desc.name,
+					// 		),
+					// 	),
+					// 	(^i32)(ptr),
+					// 	strings.clone_to_cstring(names),
+					// )
 					}
 				}
 

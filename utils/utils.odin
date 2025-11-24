@@ -33,17 +33,21 @@ ScriptManager :: struct {
 	registered_scripts: map[i32][dynamic]RegisteredScript,
 }
 
-
 AddObject :: struct {
-	name:           cstring,
-	texture_source: cstring,
-	position:       [2]f32,
-	layer:          i32,
+	name:     cstring,
+	texture:  globals.TextureType,
+	position: [2]f32,
+	layer:    i32,
 }
 
 AddAtlas :: struct {
 	name:     cstring,
 	filepath: cstring,
+}
+
+AddTexture :: struct {
+	name:   cstring,
+	source: cstring,
 }
 
 SharedContext :: struct {
@@ -55,10 +59,12 @@ SharedContext :: struct {
 	render_context: globals.RendererContextHandle,
 	add_object:     AddObject,
 	add_atlas:      AddAtlas,
+	add_texture:    AddTexture,
 	error_message:  string,
 	focused_object: globals.RenderObjectHandle,
 	key_listeners:  map[int]proc(state: ^SharedContext, action: int),
 	script_manager: ScriptManager,
+	open_popups:    map[string]bool,
 }
 
 ErrorMessage :: enum {
@@ -71,9 +77,6 @@ ErrorMessage :: enum {
 }
 
 default_shared_context :: proc() -> SharedContext {
-	addobject_texture_source := strings.unsafe_string_to_cstring(string(make([]u8, 256)[:0]))
-	addobject_name := strings.unsafe_string_to_cstring(string(make([]u8, 256)[:0]))
-
 	return SharedContext {
 		game_focused = false,
 		window_size = [2]i32{800, 600},
@@ -82,15 +85,13 @@ default_shared_context :: proc() -> SharedContext {
 		manager = nil,
 		render_context = nil,
 		add_object = AddObject {
-			name = addobject_name,
-			texture_source = addobject_texture_source,
+			name = empty_cstring(64),
+			texture = 0,
 			position = [2]f32{0.0, 0.0},
 			layer = 0,
 		},
-		add_atlas = AddAtlas {
-			name = strings.unsafe_string_to_cstring(string(make([]u8, 64)[:0])),
-			filepath = strings.unsafe_string_to_cstring(string(make([]u8, 256)[:0])),
-		},
+		add_atlas = AddAtlas{name = empty_cstring(64), filepath = empty_cstring(256)},
+		add_texture = AddTexture{name = empty_cstring(64), source = empty_cstring(256)},
 		error_message = "",
 		focused_object = nil,
 		key_listeners = map[int]proc(state: ^SharedContext, action: int){},
@@ -98,6 +99,7 @@ default_shared_context :: proc() -> SharedContext {
 			scripts = []globals.ScriptHandle{},
 			registered_scripts = map[i32][dynamic]RegisteredScript{},
 		},
+		open_popups = map[string]bool{},
 	}
 }
 
@@ -145,17 +147,10 @@ window_to_screen_coordinates :: proc(
 }
 
 texture_at_index :: proc(
-	textures: map[string]^rm.Texture,
+	texture_manager: rm.TextureManager,
 	index: globals.TextureType,
 ) -> ^rm.Texture {
-	i := 0
-	for _, texture in textures {
-		if i == int(index) {
-			return texture
-		}
-		i += 1
-	}
-	return nil
+	return texture_manager.textures[texture_manager.keys[index]]
 }
 
 empty_cstring :: proc(length: int) -> cstring {

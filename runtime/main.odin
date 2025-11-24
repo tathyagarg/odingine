@@ -30,6 +30,160 @@ BASE_SPRITE_FRAGMENT_SHADER :: #load("../resources/shaders/02_sprite/sprite.frag
 
 TILE_SCALE :: 5
 
+save_atlas :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessage {
+	for name, atlas_ptr in state.atlases {
+		atl.save_atlas(state.atlases["main"])
+		rm.update_textures_from_atlas(state.manager, state.atlases["main"])
+	}
+
+	for &layer in (^RendererContext)(state.render_context).layers {
+		for &object in layer.objects {
+			if object.texture.name == "" {
+				continue
+			}
+			object.texture = rm.get_texture(state.manager, object.texture.name)
+		}
+	}
+
+	return nil
+}
+
+load_atlas :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessage {
+	filepath := state.add_atlas.filepath
+	name := state.add_atlas.name
+
+	fmt.println("Loading atlas from ", filepath, " with name ", name)
+
+	if len(filepath) == 0 || len(name) == 0 {
+		fmt.println("Atlas filepath and name cannot be empty.")
+		return .EmptyNameOrTextureSource
+	}
+
+	res := atl.parse(string(filepath))
+	if res == nil {
+		fmt.println("Failed to load texture atlas from ", filepath)
+		return .FailedToLoadAtlas
+	}
+	atlas := res.?
+	rm.load_atlas(state.manager, atlas)
+	state.atlases[string(name)] = &atlas
+
+	return nil
+}
+
+add_object :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessage {
+	name := state.add_object.name
+	texture_id := i32(state.add_object.texture)
+	position := state.add_object.position
+
+	if len(name) == 0 {
+		fmt.println("Object name and texture source cannot be empty.")
+		return .EmptyNameOrTextureSource
+	}
+
+	texture := rm.get_texture(state.manager, state.manager.texture_manager.keys[texture_id])
+	sprite_shader := rm.get_shader(state.manager, "sprite")
+
+	new_object := rendering.RenderObject {
+		name     = string(name),
+		sprite   = sprites.initialize_sprite(state.manager, &sprite_shader),
+		position = position,
+		size     = [2]f32{f32(texture.width), f32(texture.height)},
+		rotation = f32(0),
+		texture  = texture,
+	}
+
+	append(
+		&(^RendererContext)(state.render_context).layers[state.add_object.layer].objects,
+		new_object,
+	)
+	return nil
+}
+
+delete_object :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessage {
+	if state.focused_object == nil {
+		return nil
+	}
+
+	ctx := (^RendererContext)(state.render_context)
+	for &layer in ctx.layers {
+		for i in 0 ..< len(layer.objects) {
+			if globals.RenderObjectHandle(&layer.objects[i]) == state.focused_object {
+				ordered_remove(&layer.objects, i)
+				state.focused_object = nil
+				return nil
+			}
+		}
+	}
+
+	return nil
+}
+
+
+load_texture :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessage {
+	name := state.add_texture.name
+	texture_source := state.add_texture.source
+
+	if len(name) == 0 || len(texture_source) == 0 {
+		fmt.println("Texture name and source cannot be empty.")
+		return .EmptyNameOrTextureSource
+	}
+
+	res := rm.load_texture(state.manager, string(name), string(texture_source), true)
+	if res == nil {
+		fmt.println("Failed to load texture from ", texture_source)
+		return .FailedToLoadTexture
+	}
+
+	return nil
+}
+
+load_texture_preview :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessage {
+	name := state.add_texture.name
+	texture_source := state.add_texture.source
+
+	if len(name) == 0 || len(texture_source) == 0 {
+		fmt.println("Texture name and source cannot be empty.")
+		return .EmptyNameOrTextureSource
+	}
+
+	res := rm.load_texture_without_assign(
+		state.manager,
+		string(name),
+		string(texture_source),
+		true,
+	)
+	if res == nil {
+		fmt.println("Failed to load texture from ", texture_source)
+		return .FailedToLoadTexture
+	}
+
+	state.manager.preview_texture = res
+
+	return nil
+}
+
+unload_texture_preview :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessage {
+	state.manager.preview_texture = nil
+
+	return nil
+}
+
+make_texture_permanent_if_preview :: proc(
+	state: ^utils.SharedContext,
+	args: ..any,
+) -> utils.ErrorMessage {
+	if state.manager.preview_texture != nil {
+		tex_name := state.manager.preview_texture.name
+		if tex_name == string(state.add_texture.name) {
+			state.manager.preview_texture = nil
+			return nil
+		}
+	}
+
+	return nil
+}
+
 key_callback :: proc "c" (
 	window: glfw.WindowHandle,
 	key: i32,
@@ -167,23 +321,23 @@ main :: proc() {
 	)
 
 	render_context := rendering.initialize_renderer(
-		&manager,
+		manager,
 		string(BASE_SPRITE_VERTEX_SHADER),
 		string(BASE_SPRITE_FRAGMENT_SHADER),
 		&projection,
 	)
 
-	sprite_shader := rm.get_shader(&manager, "sprite")
+	sprite_shader := rm.get_shader(manager, "sprite")
 	// render_context.background = imgui.Vec4{0.2, 0.3, 0.4, 1.0}
-	_res := rm.load_texture(&manager, "bg", "resources/textures/background.png")
+	_res := rm.load_texture(manager, "bg", "resources/textures/background.png")
 	fmt.println("Loaded background texture: ", _res)
 
 	render_context.background = &rendering.RenderObject {
-		sprite = sprites.initialize_sprite(&manager, &sprite_shader),
+		sprite = sprites.initialize_sprite(manager, &sprite_shader),
 		position = [2]f32{0.0, 0.0},
 		size = [2]f32{f32(WINDOW_WIDTH), f32(WINDOW_HEIGHT)},
 		rotation = 0.0,
-		texture = rm.get_texture(&manager, "bg"),
+		texture = rm.get_texture(manager, "bg"),
 	}
 
 	defer rendering.cleanup_renderer(&render_context)
@@ -193,29 +347,8 @@ main :: proc() {
 
 	state := utils.default_shared_context()
 	state.window_size = [2]i32{w, h}
-	state.manager = &manager
+	state.manager = manager
 	state.render_context = RendererContextHandle(&render_context)
-
-	state.event_handlers["save_atlas"] = proc(
-		state: ^utils.SharedContext,
-		args: ..any,
-	) -> utils.ErrorMessage {
-		for name, atlas_ptr in state.atlases {
-			atl.save_atlas(state.atlases["main"])
-			rm.update_textures_from_atlas(state.manager, state.atlases["main"])
-		}
-
-		for &layer in (^RendererContext)(state.render_context).layers {
-			for &object in layer.objects {
-				if object.texture.name == "" {
-					continue
-				}
-				object.texture = rm.get_texture(state.manager, object.texture.name)
-			}
-		}
-
-		return nil
-	}
 
 	loaded_scripts := [dynamic]scripts.Script{}
 	for script_proc in scripts.DEFUALT_SCRIPTS {
@@ -235,105 +368,14 @@ main :: proc() {
 		state.script_manager.scripts[i] = globals.ScriptHandle(&loaded_scripts[i])
 	}
 
-	state.event_handlers["load_atlas"] = proc(
-		state: ^utils.SharedContext,
-		args: ..any,
-	) -> utils.ErrorMessage {
-		filepath := state.add_atlas.filepath
-		name := state.add_atlas.name
-
-		fmt.println("Loading atlas from ", filepath, " with name ", name)
-
-		if len(filepath) == 0 || len(name) == 0 {
-			fmt.println("Atlas filepath and name cannot be empty.")
-			return .EmptyNameOrTextureSource
-		}
-
-		res := atl.parse(string(filepath))
-		if res == nil {
-			fmt.println("Failed to load texture atlas from ", filepath)
-			return .FailedToLoadAtlas
-		}
-		atlas := res.?
-		rm.load_atlas(state.manager, atlas)
-		state.atlases[string(name)] = &atlas
-
-		return nil
-	}
-
-	state.event_handlers["add_object"] = proc(
-		state: ^utils.SharedContext,
-		args: ..any,
-	) -> utils.ErrorMessage {
-		name := state.add_object.name
-		texture_source := state.add_object.texture_source
-		position := state.add_object.position
-
-		if len(name) == 0 || len(texture_source) == 0 {
-			fmt.println("Object name and texture source cannot be empty.")
-			return .EmptyNameOrTextureSource
-		}
-
-		texture := rm.load_texture(state.manager, string(name), string(texture_source), true, true)
-		sprite_shader := rm.get_shader(state.manager, "sprite")
-
-		new_object := rendering.RenderObject {
-			sprite   = sprites.initialize_sprite(state.manager, &sprite_shader),
-			position = position,
-			size     = [2]f32{f32(texture.width), f32(texture.height)},
-			rotation = f32(0),
-			texture  = texture,
-		}
-
-		append(
-			&(^RendererContext)(state.render_context).layers[state.add_object.layer].objects,
-			new_object,
-		)
-		return nil
-	}
-
-	state.event_handlers["delete_object"] = proc(
-		state: ^utils.SharedContext,
-		args: ..any,
-	) -> utils.ErrorMessage {
-		if state.focused_object == nil {
-			return nil
-		}
-
-		ctx := (^RendererContext)(state.render_context)
-		for &layer in ctx.layers {
-			for i in 0 ..< len(layer.objects) {
-				if RenderObjectHandle(&layer.objects[i]) == state.focused_object {
-					ordered_remove(&layer.objects, i)
-					state.focused_object = nil
-					return nil
-				}
-			}
-		}
-
-		return nil
-	}
-
-	state.event_handlers["load_texture"] = proc(
-		state: ^utils.SharedContext,
-		args: ..any,
-	) -> utils.ErrorMessage {
-		name := state.add_object.name
-		texture_source := state.add_object.texture_source
-
-		if len(name) == 0 || len(texture_source) == 0 {
-			fmt.println("Texture name and source cannot be empty.")
-			return .EmptyNameOrTextureSource
-		}
-
-		res := rm.load_texture(state.manager, string(name), string(texture_source), true, true)
-		if res == nil {
-			fmt.println("Failed to load texture from ", texture_source)
-			return .FailedToLoadTexture
-		}
-
-		return nil
-	}
+	state.event_handlers["save_atlas"] = save_atlas
+	state.event_handlers["load_atlas"] = load_atlas
+	state.event_handlers["add_object"] = add_object
+	state.event_handlers["delete_object"] = delete_object
+	state.event_handlers["load_texture"] = load_texture
+	state.event_handlers["load_texture_preview"] = load_texture_preview
+	state.event_handlers["unload_texture_preview"] = unload_texture_preview
+	state.event_handlers["make_texture_permanent_if_preview"] = make_texture_permanent_if_preview
 
 	glfw.SetWindowUserPointer(window, &state)
 
@@ -345,7 +387,7 @@ main :: proc() {
 	}
 	atlas := res.?
 
-	rm.load_atlas(&manager, atlas)
+	rm.load_atlas(manager, atlas)
 
 	for tileset_id, i in atlas.presets["showcase_1"].tile_ids {
 		texture_name := ""
@@ -359,7 +401,7 @@ main :: proc() {
 		append(
 			&render_context.layers[0].objects,
 			rendering.RenderObject {
-				sprite = sprites.initialize_sprite(&manager, &sprite_shader),
+				sprite = sprites.initialize_sprite(manager, &sprite_shader),
 				position = {
 					TILE_SCALE *
 					f32((i % atlas.presets["showcase_1"].size[0])) *
@@ -373,7 +415,7 @@ main :: proc() {
 					TILE_SCALE * f32(atlas.header.sprite_size[1]),
 				},
 				rotation = f32(0),
-				texture = rm.get_texture(&manager, texture_name),
+				texture = rm.get_texture(manager, texture_name),
 			},
 		)
 	}

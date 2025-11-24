@@ -10,9 +10,15 @@ import "core:strings"
 import atl "../atlas"
 import "../rendering/internal"
 
-ResourceManager :: struct {
-	shaders:  map[string]Shader,
+TextureManager :: struct {
+	keys:     [dynamic]string,
 	textures: map[string]^Texture,
+}
+
+ResourceManager :: struct {
+	shaders:         map[string]Shader,
+	texture_manager: TextureManager,
+	preview_texture: ^Texture,
 }
 
 Shader :: struct {
@@ -32,10 +38,17 @@ Texture :: struct {
 	filter_max:      i32,
 }
 
-initialize_resource_manager :: proc() -> ResourceManager {
-	rm: ResourceManager
-	rm.shaders = map[string]Shader{}
-	rm.textures = map[string]^Texture{}
+initialize_resource_manager :: proc() -> ^ResourceManager {
+	rm := new(ResourceManager)
+	rm^ = ResourceManager {
+		shaders = map[string]Shader{},
+		texture_manager = TextureManager {
+			keys = [dynamic]string{},
+			textures = make(map[string]^Texture),
+		},
+		preview_texture = nil,
+	}
+
 	return rm
 }
 
@@ -179,28 +192,47 @@ generate_texture :: proc(texture: ^Texture, width: i32, height: i32, data: [^]u8
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 }
 
+assign_texture :: proc(rm: ^ResourceManager, name: string, texture: ^Texture) {
+	rm.texture_manager.textures[name] = texture
+	append(&rm.texture_manager.keys, name)
+}
+
 load_texture :: proc(
 	rm: ^ResourceManager,
 	name: string,
 	file: string,
 	alpha: bool = true,
-	force_overwrite: bool = false,
 ) -> ^Texture {
-	if !force_overwrite {
-		if tex_id, exists := rm.textures[name]; exists {
-			return rm.textures[name]
-		}
+	tex := load_texture_without_assign(rm, name, file, alpha)
+	assign_texture(rm, name, tex)
+
+	return tex
+}
+
+load_texture_without_assign :: proc(
+	rm: ^ResourceManager,
+	name: string,
+	file: string,
+	alpha: bool = true,
+) -> ^Texture {
+	if tex_id, exists := rm.texture_manager.textures[name]; exists {
+		return rm.texture_manager.textures[name]
 	}
 
 	texture := load_texture_from_file(strings.clone_to_cstring(file), alpha)
+	if texture == nil {
+		fmt.eprintfln("Failed to load texture from file: %s\n", file)
+		return nil
+	}
+
 	texture.name = name
-	rm.textures[name] = texture
+
 	return texture
 }
 
 get_texture :: proc(rm: ^ResourceManager, name: string) -> ^Texture {
-	if texture, exists := rm.textures[name]; exists {
-		return rm.textures[name]
+	if texture, exists := rm.texture_manager.textures[name]; exists {
+		return rm.texture_manager.textures[name]
 	} else {
 		fmt.eprintfln("Texture not found: '%s'\n", name)
 		return nil
@@ -238,6 +270,9 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> ^Texture {
 	width, height, nrChannels: i32
 
 	data := stb.load(file, &width, &height, &nrChannels, 4)
+	if data == nil {
+		return nil
+	}
 
 	generate_texture(texture, width, height, data)
 	stb.image_free(data)
@@ -249,7 +284,7 @@ load_atlas :: proc(rm: ^ResourceManager, atlas: atl.Atlas) -> map[string]^Textur
 	textures := load_textures_from_atlas(atlas)
 
 	for name, _ in atlas.tiles {
-		rm.textures[name] = textures[name]
+		assign_texture(rm, name, textures[name])
 	}
 
 	return textures
@@ -361,7 +396,7 @@ update_textures_from_atlas :: proc(rm: ^ResourceManager, atlas: ^atl.Atlas) {
 			for name, tile in atlas.tiles {
 				if i32(tile.position[0]) / tile_width == x &&
 				   i32(tile.position[1]) / tile_height == y {
-					if texture, exists := rm.textures[name]; exists {
+					if texture, exists := rm.texture_manager.textures[name]; exists {
 						generate_texture(texture, tile_width, tile_height, tile_data)
 					}
 					break
