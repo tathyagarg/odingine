@@ -96,7 +96,7 @@ KeyboardMovementScript :: proc() -> Script {
 				if target != nil && (action == glfw.PRESS || action == glfw.REPEAT) {
 					target.position[1] -= args.speed
 					texture := utils.texture_at_index(
-						state.manager.texture_manager,
+						&state.manager.texture_manager,
 						args.back_texture,
 					)
 					if texture != nil {
@@ -116,7 +116,7 @@ KeyboardMovementScript :: proc() -> Script {
 				if target != nil && (action == glfw.PRESS || action == glfw.REPEAT) {
 					target.position[1] += args.speed
 					texture := utils.texture_at_index(
-						state.manager.texture_manager,
+						&state.manager.texture_manager,
 						args.front_texture,
 					)
 					if texture != nil {
@@ -136,7 +136,7 @@ KeyboardMovementScript :: proc() -> Script {
 				if target != nil && (action == glfw.PRESS || action == glfw.REPEAT) {
 					target.position[0] -= args.speed
 					texture := utils.texture_at_index(
-						state.manager.texture_manager,
+						&state.manager.texture_manager,
 						args.left_texture,
 					)
 					if texture != nil {
@@ -156,7 +156,7 @@ KeyboardMovementScript :: proc() -> Script {
 				if target != nil && (action == glfw.PRESS || action == glfw.REPEAT) {
 					target.position[0] += args.speed
 					texture := utils.texture_at_index(
-						state.manager.texture_manager,
+						&state.manager.texture_manager,
 						args.right_texture,
 					)
 					if texture != nil {

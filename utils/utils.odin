@@ -147,7 +147,7 @@ window_to_screen_coordinates :: proc(
 }
 
 texture_at_index :: proc(
-	texture_manager: rm.TextureManager,
+	texture_manager: ^rm.TextureManager,
 	index: globals.TextureType,
 ) -> ^rm.Texture {
 	return texture_manager.textures[texture_manager.keys[index]]

@@ -30,6 +30,13 @@ texture_input :: proc(
 	texture_manager: ^rm.TextureManager,
 	ptr: rawptr,
 ) {
+	imgui.Image(
+		u64(utils.texture_at_index(texture_manager, (^globals.TextureType)(ptr)^).id),
+		imgui.Vec2{16, 16},
+	)
+
+	imgui.SameLine()
+
 	imgui.PushID(combo_id)
 
 	if imgui.BeginCombo(label, strings.clone_to_cstring(texture_manager.keys[(^i32)(ptr)^])) {
@@ -91,13 +98,16 @@ general_information_window :: proc(
 		imgui.Cond.Always,
 	)
 
-	if imgui.Begin("Main Window", nil, {.NoMove, .NoResize, .NoCollapse}) {
-		if (imgui.BeginMenu("Texture")) {
-			if (imgui.MenuItem("Load Texture")) {
-				fmt.println("Opening Load Texture Popup")
-				ctx.open_popups["load_texture"] = true
+	if imgui.Begin("Main Window", nil, {.NoMove, .NoResize, .NoCollapse, .MenuBar, .NoTitleBar}) {
+		if (imgui.BeginMenuBar()) {
+			if (imgui.BeginMenu("Texture")) {
+				if (imgui.MenuItem("Load Texture")) {
+					fmt.println("Opening Load Texture Popup")
+					ctx.open_popups["load_texture"] = true
+				}
+				imgui.EndMenu()
 			}
-			imgui.EndMenu()
+			imgui.EndMenuBar()
 		}
 
 		imgui.Checkbox("Game focused?", &ctx.game_focused)
@@ -258,23 +268,22 @@ general_information_window :: proc(
 		pos := imgui.GetMainViewport().Pos
 		size := imgui.GetMainViewport().Size
 
-		modal_size := imgui.Vec2{400, 200}
+		// imgui.SetNextWindowSize(imgui.Vec2{size.x / 2, size.y / 2})
+		imgui.SetNextWindowSizeConstraints(imgui.Vec2{0, 0}, imgui.Vec2{size.x / 3, 200})
 		imgui.SetNextWindowPos(
-			imgui.Vec2 {
-				pos.x + size.x / 2 - modal_size.x / 2,
-				pos.y + size.y / 2 - modal_size.y / 2,
-			},
-			imgui.Cond.Always,
+			imgui.Vec2{pos.x + size.x / 3, pos.y + size.y / 3},
+			imgui.Cond.Appearing,
 		)
-		imgui.SetNextWindowSize(modal_size, imgui.Cond.Always)
 
-		if imgui.Begin("Load Texture Modal", nil, {.NoResize, .NoCollapse}) {
-			imgui.Text("Load texture")
-
+		if imgui.Begin(
+			"Load Texture Modal",
+			&ctx.open_popups["load_texture"],
+			{.NoResize, .NoCollapse, .AlwaysAutoResize},
+		) {
 			if ctx.manager.preview_texture != nil {
 				preview_texture := (^rm.Texture)(ctx.manager.preview_texture)
-				texture_size_x := 64
-				texture_size_y := 64 * preview_texture.height / preview_texture.width
+				texture_size_x := 128
+				texture_size_y := 128 * preview_texture.height / preview_texture.width
 
 				imgui.Image(
 					u64(preview_texture.id),
@@ -287,11 +296,16 @@ general_information_window :: proc(
 			imgui.SameLine()
 
 			imgui.BeginGroup()
+
+			imgui.Text("Texture Details")
+
 			imgui.InputText("Name", ctx.add_texture.name, 64)
 			imgui.InputText("Source", ctx.add_texture.source, 256)
 			imgui.EndGroup()
 
-			if imgui.Button("Preview", imgui.Vec2{imgui.GetContentRegionAvail().x / 2 - 5, 0}) {
+			imgui.Separator()
+
+			if imgui.Button("Preview", imgui.Vec2{imgui.GetContentRegionAvail().x / 3 - 5, 0}) {
 				err := ctx.event_handlers["load_texture_preview"](ctx)
 				if err != nil {
 					ctx.error_message = fmt.aprintf("Failed to preview texture: %s", err)
@@ -300,25 +314,37 @@ general_information_window :: proc(
 
 			imgui.SameLine()
 
-			if imgui.Button("Load", imgui.Vec2{imgui.GetContentRegionAvail().x, 0}) {
+			imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_GREEN))
+			imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_GREEN_HOVERED))
+			imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_GREEN_ACTIVE))
+
+			if imgui.Button("Load", imgui.Vec2{imgui.GetContentRegionAvail().x / 2 - 5, 0}) {
 				ctx.event_handlers["make_texture_permanent_if_preview"](ctx)
 				err := ctx.event_handlers["load_texture"](ctx)
 				if err != nil {
 					ctx.error_message = fmt.aprintf("Failed to load texture: %s", err)
 				} else {
-					ctx.open_popups["load_texture"] = false
-
 					ctx.add_texture.name = utils.empty_cstring(64)
 					ctx.add_texture.source = utils.empty_cstring(256)
 				}
 			}
 
-			if imgui.Button("Cancel") {
+			imgui.PopStyleColor(3)
+
+			imgui.SameLine()
+
+			imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_RED))
+			imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_RED_HOVERED))
+			imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_RED_ACTIVE))
+
+			if imgui.Button("Cancel", imgui.Vec2{imgui.GetContentRegionAvail().x, 0}) {
 				ctx.open_popups["load_texture"] = false
 
 				ctx.add_texture.name = utils.empty_cstring(64)
 				ctx.add_texture.source = utils.empty_cstring(256)
 			}
+
+			imgui.PopStyleColor(3)
 
 			imgui.End()
 		}
@@ -502,7 +528,6 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 				for arg_desc in script.argument_descriptors {
 					switch arg_desc.type_info {
 					case typeid_of(f32):
-						args := (^scripts.KeyboardMovementScriptInput)(script.arguments)
 						ptr := rawptr(uintptr(script.arguments) + arg_desc.offset)
 						imgui.InputFloat(
 							strings.clone_to_cstring(
@@ -516,8 +541,6 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 							(^f32)(ptr),
 						)
 					case typeid_of(cstring):
-						args := (^scripts.KeyboardMovementScriptInput)(script.arguments)
-
 						ptr := rawptr(uintptr(script.arguments) + arg_desc.offset)
 						imgui.InputText(
 							strings.clone_to_cstring(
@@ -532,8 +555,6 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 							256,
 						)
 					case typeid_of(scripts.TextureType):
-						args := (^scripts.KeyboardMovementScriptInput)(script.arguments)
-
 						ptr := rawptr(uintptr(script.arguments) + arg_desc.offset)
 
 						keys := ctx.manager.texture_manager.keys
@@ -555,77 +576,8 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 							ptr,
 						)
 
-					// imgui.PushID(
-					// 	strings.clone_to_cstring(
-					// 		(fmt.aprintf("%s_%s", script.name, arg_desc.name)),
-					// 	),
-					// )
-
-					// if imgui.BeginCombo(
-					// 	strings.clone_to_cstring(arg_desc.name),
-					// 	strings.clone_to_cstring(
-					// 		ctx.manager.texture_manager.keys[(^i32)(ptr)^],
-					// 	),
-					// 	{.WidthFitPreview},
-					// ) {
-					// 	@(static) filter: imgui.TextFilter
-					// 	if imgui.IsWindowAppearing() {
-					// 		imgui.SetKeyboardFocusHere()
-					// 		imgui.TextFilter_Clear(&filter)
-					// 	}
-
-					// 	imgui.TextFilter_Draw(&filter, "##Filter", -1)
-
-					// 	for texture_name, texture_id in ctx.manager.texture_manager.keys {
-					// 		if imgui.TextFilter_PassFilter(
-					// 			&filter,
-					// 			strings.clone_to_cstring(texture_name),
-					// 		) {
-					// 			imgui.PushID(
-					// 				strings.clone_to_cstring(
-					// 					fmt.aprintf("%s_%s", script.name, arg_desc.name),
-					// 				),
-					// 			)
-					// 			if imgui.Selectable(
-					// 				strings.clone_to_cstring(texture_name),
-					// 				(^i32)(ptr)^ == i32(texture_id),
-					// 			) {
-					// 				(^scripts.TextureType)(ptr)^ = scripts.TextureType(
-					// 					texture_id,
-					// 				)
-					// 			}
-					// 			imgui.PopID()
-
-
-					// 		}
-					// 	}
-					// 	imgui.EndCombo()
-					// }
-					// imgui.PopID()
-
-					// imgui.Combo(
-					// 	strings.clone_to_cstring(
-					// 		fmt.aprintf(
-					// 			"%s##%s_%s",
-					// 			arg_desc.name,
-					// 			script.name,
-					// 			arg_desc.name,
-					// 		),
-					// 	),
-					// 	(^i32)(ptr),
-					// 	strings.clone_to_cstring(names),
-					// )
 					}
 				}
-
-				// switch script.argument_type {
-				// case typeid_of(scripts.KeyboardMovementScriptInput):
-				// 	args := (^scripts.KeyboardMovementScriptInput)(script.arguments)
-				// 	imgui.InputFloat(
-				// 		strings.clone_to_cstring(fmt.aprintf("Speed##%s_speed", script.name)),
-				// 		&args.speed,
-				// 	)
-				// }
 			}
 		} else {
 			imgui.Text("No object selected.")
