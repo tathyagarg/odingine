@@ -7,6 +7,7 @@ import "core:strings"
 import gl "vendor:OpenGL"
 
 import "../../utils/globals"
+import atl "../atlas"
 import render_sprite "../rendering/sprite"
 import rm "../resource_manager"
 
@@ -131,4 +132,57 @@ add_layer :: proc(ctx: ^RendererContext, name: string, z_layer: i32) {
 	fmt.println("Added layer '", name, "' with z-layer ", z_layer)
 	fmt.println("Current layers:")
 	fmt.println(ctx.layers)
+}
+
+render_atlas_preset :: proc(
+	ctx: ^RendererContext,
+	manager: ^rm.ResourceManager,
+	atlas: ^atl.Atlas,
+	preset: string,
+	layer: u32,
+	offset: [2]f32,
+) {
+	preset_data, ok := atlas.presets.presets[preset]
+	if !ok {
+		fmt.println("Preset '", preset, "' not found in atlas.")
+		return
+	}
+
+	sprite_shader := rm.get_shader(manager, "sprite")
+
+	for tileset_id, i in preset_data.tile_ids {
+		texture_name := ""
+		for name, t in atlas.tiles {
+			if t.id == tileset_id {
+				texture_name = name
+				break
+			}
+		}
+
+
+		append(
+			&ctx.layers[layer].objects,
+			RenderObject {
+				name = texture_name,
+				sprite = render_sprite.initialize_sprite(manager, &sprite_shader),
+				position = {
+					offset[0] +
+					globals.TILE_SCALE *
+						f32((i % preset_data.size[0])) *
+						f32(atlas.header.sprite_size[0]),
+					offset[1] +
+					globals.TILE_SCALE *
+						f32((i / preset_data.size[0])) *
+						f32(atlas.header.sprite_size[1]),
+				},
+				size = {
+					globals.TILE_SCALE * f32(atlas.header.sprite_size[0]),
+					globals.TILE_SCALE * f32(atlas.header.sprite_size[1]),
+				},
+				rotation = f32(0),
+				texture = rm.get_texture(manager, texture_name),
+				scripts = [dynamic]globals.ScriptHandle{},
+			},
+		)
+	}
 }

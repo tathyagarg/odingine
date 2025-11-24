@@ -24,22 +24,15 @@ COLOR_RED_ACTIVE :: imgui.Vec4{0.5, 0.1, 0.1, 1.0}
 
 COLOR_U32 :: imgui.GetColorU32ImVec4
 
-texture_input :: proc(
+findable_combo_input :: proc(
 	combo_id: cstring,
 	label: cstring,
-	texture_manager: ^rm.TextureManager,
-	ptr: rawptr,
+	options: []string,
+	selected_index: ^i32,
 ) {
-	imgui.Image(
-		u64(utils.texture_at_index(texture_manager, (^globals.TextureType)(ptr)^).id),
-		imgui.Vec2{16, 16},
-	)
-
-	imgui.SameLine()
-
 	imgui.PushID(combo_id)
 
-	if imgui.BeginCombo(label, strings.clone_to_cstring(texture_manager.keys[(^i32)(ptr)^])) {
+	if imgui.BeginCombo(label, strings.clone_to_cstring(options[(^i32)(selected_index)^])) {
 		@(static) filter: imgui.TextFilter
 		if imgui.IsWindowAppearing() {
 			imgui.SetKeyboardFocusHere()
@@ -48,24 +41,68 @@ texture_input :: proc(
 
 		imgui.TextFilter_Draw(&filter, "##Filter", -1)
 
-		for texture_name, texture_id in texture_manager.keys {
-			if imgui.TextFilter_PassFilter(&filter, strings.clone_to_cstring(texture_name)) {
-				imgui.PushID(
-					strings.clone_to_cstring(fmt.aprintf("%s_%s", combo_id, texture_name)),
-				)
+		for i in 0 ..< len(options) {
+			if imgui.TextFilter_PassFilter(&filter, strings.clone_to_cstring(options[i])) {
+				imgui.PushID(strings.clone_to_cstring(fmt.aprintf("%s_%s", combo_id, options[i])))
 				if imgui.Selectable(
-					strings.clone_to_cstring(texture_name),
-					(^i32)(ptr)^ == i32(texture_id),
+					strings.clone_to_cstring(options[i]),
+					selected_index^ == i32(i),
 				) {
-					(^scripts.TextureType)(ptr)^ = scripts.TextureType(texture_id)
+					selected_index^ = i32(i)
 				}
 				imgui.PopID()
 			}
 		}
 		imgui.EndCombo()
 	}
-	imgui.PopID()
 
+	imgui.PopID()
+}
+
+texture_input :: proc(
+	combo_id: cstring,
+	label: cstring,
+	options: []string,
+	ptr: ^scripts.TextureType,
+	texture_manager: ^rm.TextureManager,
+) {
+	imgui.Image(
+		u64(utils.texture_at_index(texture_manager, (^globals.TextureType)(ptr)^).id),
+		imgui.Vec2{16, 16},
+	)
+
+	imgui.SameLine()
+
+	findable_combo_input(combo_id, label, options, (^i32)(ptr))
+
+	// imgui.PushID(combo_id)
+
+	// if imgui.BeginCombo(label, strings.clone_to_cstring(texture_manager.keys[(^i32)(ptr)^])) {
+	// 	@(static) filter: imgui.TextFilter
+	// 	if imgui.IsWindowAppearing() {
+	// 		imgui.SetKeyboardFocusHere()
+	// 		imgui.TextFilter_Clear(&filter)
+	// 	}
+
+	// 	imgui.TextFilter_Draw(&filter, "##Filter", -1)
+
+	// 	for texture_name, texture_id in texture_manager.keys {
+	// 		if imgui.TextFilter_PassFilter(&filter, strings.clone_to_cstring(texture_name)) {
+	// 			imgui.PushID(
+	// 				strings.clone_to_cstring(fmt.aprintf("%s_%s", combo_id, texture_name)),
+	// 			)
+	// 			if imgui.Selectable(
+	// 				strings.clone_to_cstring(texture_name),
+	// 				(^i32)(ptr)^ == i32(texture_id),
+	// 			) {
+	// 				(^scripts.TextureType)(ptr)^ = scripts.TextureType(texture_id)
+	// 			}
+	// 			imgui.PopID()
+	// 		}
+	// 	}
+	// 	imgui.EndCombo()
+	// }
+	// imgui.PopID()
 }
 
 show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandle) {
@@ -113,8 +150,8 @@ general_information_window :: proc(
 		imgui.Checkbox("Game focused?", &ctx.game_focused)
 
 		if (imgui.CollapsingHeader("Texture Atlases")) {
-			for name, atlas_ptr in ctx.atlases {
-				imgui.SeparatorText(strings.unsafe_string_to_cstring(name))
+			for name, atlas_ptr in ctx.manager.atlas_manager.atlases {
+				imgui.SeparatorText(strings.clone_to_cstring(name))
 
 				imgui.InputText(
 					strings.clone_to_cstring(fmt.aprintf("Source##%s", name)),
@@ -134,12 +171,50 @@ general_information_window :: proc(
 				ctx.add_atlas.filepath,
 				256,
 			)
-			imgui.InputText(strings.clone_to_cstring("Name##atlas_name"), ctx.add_object.name, 64)
+			imgui.InputText(strings.clone_to_cstring("Name##atlas_name"), ctx.add_atlas.name, 64)
 
 			if imgui.Button("Load Atlas", {imgui.GetContentRegionAvail()[0], 0}) {
 				err := ctx.event_handlers["load_atlas"](ctx)
 				if err != nil {
 					ctx.error_message = fmt.aprintf("Failed to load atlas: %s", err)
+					imgui.OpenPopup("Error")
+				}
+			}
+
+			imgui.SeparatorText("Load Preset")
+
+			findable_combo_input(
+				"atlas_combo",
+				"Atlas##atlas_combo",
+				ctx.manager.atlas_manager.keys[:],
+				&ctx.add_preset.atlas_name,
+			)
+
+			findable_combo_input(
+				"preset_combo",
+				"Preset##preset_combo",
+				ctx.manager.atlas_manager.atlases[ctx.manager.atlas_manager.keys[i32(ctx.add_preset.atlas_name)]].presets.keys[:],
+				&ctx.add_preset.preset_name,
+			)
+
+			findable_combo_input(
+				"layer_combo",
+				"Layer##layer_combo",
+				slice.mapper(
+					(^rendering.RendererContext)(ctx.render_context).layers[:],
+					proc(layer: rendering.RenderLayer) -> string {
+						return string(layer.name)
+					},
+				),
+				&ctx.add_preset.layer_index,
+			)
+
+			imgui.InputFloat2("Offset", &ctx.add_preset.offset)
+
+			if imgui.Button("Load Preset", {imgui.GetContentRegionAvail()[0], 0}) {
+				err := ctx.event_handlers["render_atlas_preset"](ctx)
+				if err != nil {
+					ctx.error_message = fmt.aprintf("Failed to load atlas preset: %s", err)
 					imgui.OpenPopup("Error")
 				}
 			}
@@ -156,8 +231,9 @@ general_information_window :: proc(
 			texture_input(
 				strings.clone_to_cstring("object_texture_input"),
 				strings.clone_to_cstring("Texture##object_texture"),
+				ctx.manager.texture_manager.keys[:],
+				&ctx.add_object.texture,
 				&ctx.manager.texture_manager,
-				rawptr(&ctx.add_object.texture),
 			)
 
 			imgui.InputFloat2(
@@ -261,7 +337,6 @@ general_information_window :: proc(
 	}
 
 	if ctx.open_popups["load_texture"] or_else false {
-		imgui.SetNextWindowFocus()
 		imgui.SetNextWindowPos(imgui.GetMainViewport().Pos)
 		imgui.SetNextWindowSize(imgui.GetMainViewport().Size)
 
@@ -301,7 +376,6 @@ general_information_window :: proc(
 
 			imgui.InputText("Name", ctx.add_texture.name, 64)
 			imgui.InputText("Source", ctx.add_texture.source, 256)
-			imgui.EndGroup()
 
 			imgui.Separator()
 
@@ -345,6 +419,8 @@ general_information_window :: proc(
 			}
 
 			imgui.PopStyleColor(3)
+
+			imgui.EndGroup()
 
 			imgui.End()
 		}
@@ -572,8 +648,9 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 									arg_desc.name,
 								),
 							),
+							keys[:],
+							(^scripts.TextureType)(ptr),
 							&ctx.manager.texture_manager,
-							ptr,
 						)
 
 					}

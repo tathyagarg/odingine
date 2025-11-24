@@ -28,17 +28,17 @@ TILESET_TEXTURE_PATH :: "resources/atlases/01_grass"
 BASE_SPRITE_VERTEX_SHADER :: #load("../resources/shaders/02_sprite/sprite.vert")
 BASE_SPRITE_FRAGMENT_SHADER :: #load("../resources/shaders/02_sprite/sprite.frag")
 
-TILE_SCALE :: 5
-
 save_atlas :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessage {
-	for name, atlas_ptr in state.atlases {
-		atl.save_atlas(state.atlases["main"])
-		rm.update_textures_from_atlas(state.manager, state.atlases["main"])
+	atlases := state.manager.atlas_manager.atlases
+
+	for name, atlas_ptr in atlases {
+		atl.save_atlas(atlases[name])
+		rm.update_textures_from_atlas(state.manager, atlases[name])
 	}
 
 	for &layer in (^RendererContext)(state.render_context).layers {
 		for &object in layer.objects {
-			if object.texture.name == "" {
+			if object.texture == nil {
 				continue
 			}
 			object.texture = rm.get_texture(state.manager, object.texture.name)
@@ -65,8 +65,8 @@ load_atlas :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessa
 		return .FailedToLoadAtlas
 	}
 	atlas := res.?
-	rm.load_atlas(state.manager, atlas)
-	state.atlases[string(name)] = &atlas
+
+	rm.load_atlas(state.manager, &atlas)
 
 	return nil
 }
@@ -169,6 +169,30 @@ unload_texture_preview :: proc(state: ^utils.SharedContext, args: ..any) -> util
 	return nil
 }
 
+render_atlas_preset :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessage {
+	atlas_index := state.add_preset.atlas_name
+	atlas_name := state.manager.atlas_manager.keys[atlas_index]
+	atlas := state.manager.atlas_manager.atlases[atlas_name]
+
+	preset_index := state.add_preset.preset_name
+	preset_name := atlas.presets.keys[preset_index]
+
+	layer := state.add_preset.layer_index
+
+	offset := state.add_preset.offset
+
+	rendering.render_atlas_preset(
+		(^RendererContext)(state.render_context),
+		state.manager,
+		atlas,
+		string(preset_name),
+		u32(layer),
+		offset,
+	)
+
+	return nil
+}
+
 make_texture_permanent_if_preview :: proc(
 	state: ^utils.SharedContext,
 	args: ..any,
@@ -217,8 +241,6 @@ key_callback :: proc "c" (
 					action,
 					script.arguments,
 				)
-
-				// registered_script.script_proc(state, registered_script.target, action)
 			}
 		}
 	}
@@ -330,7 +352,6 @@ main :: proc() {
 	sprite_shader := rm.get_shader(manager, "sprite")
 	// render_context.background = imgui.Vec4{0.2, 0.3, 0.4, 1.0}
 	_res := rm.load_texture(manager, "bg", "resources/textures/background.png")
-	fmt.println("Loaded background texture: ", _res)
 
 	render_context.background = &rendering.RenderObject {
 		sprite = sprites.initialize_sprite(manager, &sprite_shader),
@@ -376,6 +397,7 @@ main :: proc() {
 	state.event_handlers["load_texture_preview"] = load_texture_preview
 	state.event_handlers["unload_texture_preview"] = unload_texture_preview
 	state.event_handlers["make_texture_permanent_if_preview"] = make_texture_permanent_if_preview
+	state.event_handlers["render_atlas_preset"] = render_atlas_preset
 
 	glfw.SetWindowUserPointer(window, &state)
 
@@ -387,40 +409,40 @@ main :: proc() {
 	}
 	atlas := res.?
 
-	rm.load_atlas(manager, atlas)
+	rm.load_atlas(manager, &atlas)
 
-	for tileset_id, i in atlas.presets["showcase_1"].tile_ids {
-		texture_name := ""
-		for name, t in atlas.tiles {
-			if t.id == tileset_id {
-				texture_name = name
-				break
-			}
-		}
+	// rendering.render_atlas_preset(&render_context, manager, atlas, "showcase_1", 0)
 
-		append(
-			&render_context.layers[0].objects,
-			rendering.RenderObject {
-				sprite = sprites.initialize_sprite(manager, &sprite_shader),
-				position = {
-					TILE_SCALE *
-					f32((i % atlas.presets["showcase_1"].size[0])) *
-					f32(atlas.header.sprite_size[0]),
-					TILE_SCALE *
-					f32((i / atlas.presets["showcase_1"].size[0])) *
-					f32(atlas.header.sprite_size[1]),
-				},
-				size = {
-					TILE_SCALE * f32(atlas.header.sprite_size[0]),
-					TILE_SCALE * f32(atlas.header.sprite_size[1]),
-				},
-				rotation = f32(0),
-				texture = rm.get_texture(manager, texture_name),
-			},
-		)
-	}
+	// for tileset_id, i in atlas.presets["showcase_1"].tile_ids {
+	// 	texture_name := ""
+	// 	for name, t in atlas.tiles {
+	// 		if t.id == tileset_id {
+	// 			texture_name = name
+	// 			break
+	// 		}
+	// 	}
 
-	state.atlases["main"] = &atlas
+	// 	append(
+	// 		&render_context.layers[0].objects,
+	// 		rendering.RenderObject {
+	// 			sprite = sprites.initialize_sprite(manager, &sprite_shader),
+	// 			position = {
+	// 				TILE_SCALE *
+	// 				f32((i % atlas.presets["showcase_1"].size[0])) *
+	// 				f32(atlas.header.sprite_size[0]),
+	// 				TILE_SCALE *
+	// 				f32((i / atlas.presets["showcase_1"].size[0])) *
+	// 				f32(atlas.header.sprite_size[1]),
+	// 			},
+	// 			size = {
+	// 				TILE_SCALE * f32(atlas.header.sprite_size[0]),
+	// 				TILE_SCALE * f32(atlas.header.sprite_size[1]),
+	// 			},
+	// 			rotation = f32(0),
+	// 			texture = rm.get_texture(manager, texture_name),
+	// 		},
+	// 	)
+	// }
 
 	imgui.CreateContext()
 	imgui.StyleColorsDark()

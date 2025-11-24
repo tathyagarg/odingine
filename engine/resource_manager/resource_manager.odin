@@ -15,10 +15,16 @@ TextureManager :: struct {
 	textures: map[string]^Texture,
 }
 
+AtlasManager :: struct {
+	keys:    [dynamic]string,
+	atlases: map[string]^atl.Atlas,
+}
+
 ResourceManager :: struct {
 	shaders:         map[string]Shader,
 	texture_manager: TextureManager,
 	preview_texture: ^Texture,
+	atlas_manager:   AtlasManager,
 }
 
 Shader :: struct {
@@ -45,6 +51,10 @@ initialize_resource_manager :: proc() -> ^ResourceManager {
 		texture_manager = TextureManager {
 			keys = [dynamic]string{},
 			textures = make(map[string]^Texture),
+		},
+		atlas_manager = AtlasManager {
+			keys = [dynamic]string{},
+			atlases = make(map[string]^atl.Atlas),
 		},
 		preview_texture = nil,
 	}
@@ -280,12 +290,19 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> ^Texture {
 	return texture
 }
 
-load_atlas :: proc(rm: ^ResourceManager, atlas: atl.Atlas) -> map[string]^Texture {
-	textures := load_textures_from_atlas(atlas)
+load_atlas :: proc(rm: ^ResourceManager, atlas: ^atl.Atlas) -> map[string]^Texture {
+	textures := load_textures_from_atlas(atlas^)
 
 	for name, _ in atlas.tiles {
 		assign_texture(rm, name, textures[name])
 	}
+
+	fmt.println("Loaded atlas: ", atlas)
+
+	append(&rm.atlas_manager.keys, string(atlas.header.name))
+	rm.atlas_manager.atlases[string(atlas.header.name)] = atlas
+
+	fmt.println("Header: ", atlas.header)
 
 	return textures
 }

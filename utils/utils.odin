@@ -6,7 +6,6 @@ import "core:strings"
 
 import "vendor:glfw"
 
-import atl "../engine/atlas"
 import rm "../engine/resource_manager"
 import "./globals"
 
@@ -45,6 +44,13 @@ AddAtlas :: struct {
 	filepath: cstring,
 }
 
+AddPreset :: struct {
+	atlas_name:  i32,
+	preset_name: i32,
+	layer_index: i32,
+	offset:      [2]f32,
+}
+
 AddTexture :: struct {
 	name:   cstring,
 	source: cstring,
@@ -53,13 +59,14 @@ AddTexture :: struct {
 SharedContext :: struct {
 	game_focused:   bool,
 	window_size:    [2]i32,
-	atlases:        map[string]^atl.Atlas,
+	selected_atlas: i32,
 	event_handlers: map[string]proc(state: ^SharedContext, args: ..any) -> ErrorMessage,
 	manager:        ^rm.ResourceManager,
 	render_context: globals.RendererContextHandle,
 	add_object:     AddObject,
 	add_atlas:      AddAtlas,
 	add_texture:    AddTexture,
+	add_preset:     AddPreset,
 	error_message:  string,
 	focused_object: globals.RenderObjectHandle,
 	key_listeners:  map[int]proc(state: ^SharedContext, action: int),
@@ -80,7 +87,6 @@ default_shared_context :: proc() -> SharedContext {
 	return SharedContext {
 		game_focused = false,
 		window_size = [2]i32{800, 600},
-		atlases = map[string]^atl.Atlas{},
 		event_handlers = map[string]proc(state: ^SharedContext, args: ..any) -> ErrorMessage{},
 		manager = nil,
 		render_context = nil,
@@ -92,6 +98,12 @@ default_shared_context :: proc() -> SharedContext {
 		},
 		add_atlas = AddAtlas{name = empty_cstring(64), filepath = empty_cstring(256)},
 		add_texture = AddTexture{name = empty_cstring(64), source = empty_cstring(256)},
+		add_preset = AddPreset {
+			atlas_name = 0,
+			preset_name = 0,
+			layer_index = 0,
+			offset = [2]f32{0.0, 0.0},
+		},
 		error_message = "",
 		focused_object = nil,
 		key_listeners = map[int]proc(state: ^SharedContext, action: int){},

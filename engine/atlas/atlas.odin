@@ -16,7 +16,13 @@ Preset :: struct {
 	tile_ids: []int,
 }
 
+PresetManager :: struct {
+	keys:    [dynamic]string,
+	presets: map[string]Preset,
+}
+
 Header :: struct {
+	name:         string,
 	filename:     cstring,
 	sprite_count: int,
 	sprite_size:  [2]int,
@@ -27,7 +33,20 @@ Atlas :: struct {
 	source:  cstring,
 	header:  Header,
 	tiles:   map[string]Tile,
-	presets: map[string]Preset,
+	presets: PresetManager,
+}
+
+add_preset :: proc(manager: ^PresetManager, name: string, preset: Preset) {
+	if manager == nil {
+		fmt.println("Cannot add preset to a nil manager")
+		return
+	}
+
+	if _, exists := manager.presets[name]; !exists {
+		append(&manager.keys, name)
+	}
+
+	manager.presets[name] = preset
 }
 
 load_file :: proc(path: string) -> (string, string, bool) {
@@ -74,7 +93,7 @@ parse_header :: proc(path: string, data: string) -> Maybe(Header) {
 	lines := strings.split(data, "\n")
 	header := Header{}
 
-	if len(lines) < 4 {
+	if len(lines) < 5 {
 		fmt.println("Invalid header format")
 		return nil
 	}
@@ -96,6 +115,8 @@ parse_header :: proc(path: string, data: string) -> Maybe(Header) {
 		value := strings.trim(parts[1], " ")
 
 		switch key {
+		case "name":
+			header.name = value
 		case "src":
 			header.filename = strings.clone_to_cstring(value)
 		case "count":
@@ -395,7 +416,9 @@ parse :: proc(path: string) -> Maybe(Atlas) {
 				return nil
 			}
 
-			atlas.presets = presets.?
+			for name, preset in presets.? {
+				add_preset(&atlas.presets, name, preset)
+			}
 		}
 	}
 
@@ -426,7 +449,8 @@ save_atlas :: proc(atlas: ^Atlas) {
 		{
 			content,
 			fmt.aprintf(
-				"header:\n  src: %s\n  count: %d\n  sprite_size: %d %d\n  atlas_size: %d %d\n\n",
+				"header:\n  name: %s\n  src: %s\n  count: %d\n  sprite_size: %d %d\n  atlas_size: %d %d\n\n",
+				atlas.header.name,
 				filepath.base(string(atlas.header.filename)),
 				atlas.header.sprite_count,
 				atlas.header.sprite_size[0],
@@ -456,7 +480,7 @@ save_atlas :: proc(atlas: ^Atlas) {
 
 	content = strings.concatenate({content, "\npresets:\n"})
 
-	for name, preset in atlas.presets {
+	for name, preset in atlas.presets.presets {
 		content = strings.concatenate(
 			{
 				content,

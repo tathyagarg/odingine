@@ -2,3 +2,4 @@
 imgui.ini
 
 *.bin
+*.dSYM/
