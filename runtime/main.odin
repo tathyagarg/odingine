@@ -288,6 +288,16 @@ mouse_callback :: proc "c" (window: glfw.WindowHandle, button: i32, action: i32,
 							continue
 						}
 
+						fmt.println("Click at x:", x, " y:", y)
+						fmt.println(
+							"Checking object ",
+							object.name,
+							" at position ",
+							object.position,
+							" with size ",
+							object.size,
+						)
+
 						if x >= f64(object.position[0]) &&
 						   x <= f64(object.position[0] + object.size[0]) &&
 						   y >= f64(object.position[1]) &&

@@ -150,39 +150,56 @@ render_atlas_preset :: proc(
 
 	sprite_shader := rm.get_shader(manager, "sprite")
 
-	for tileset_id, i in preset_data.tile_ids {
-		texture_name := ""
-		for name, t in atlas.tiles {
-			if t.id == tileset_id {
-				texture_name = name
-				break
-			}
-		}
+	fmt.println("Rendering preset '", preset, "' at offset ", offset)
 
-
-		append(
-			&ctx.layers[layer].objects,
-			RenderObject {
-				name = texture_name,
-				sprite = render_sprite.initialize_sprite(manager, &sprite_shader),
-				position = {
-					offset[0] +
-					globals.TILE_SCALE *
-						f32((i % preset_data.size[0])) *
-						f32(atlas.header.sprite_size[0]),
-					offset[1] +
-					globals.TILE_SCALE *
-						f32((i / preset_data.size[0])) *
-						f32(atlas.header.sprite_size[1]),
-				},
-				size = {
-					globals.TILE_SCALE * f32(atlas.header.sprite_size[0]),
-					globals.TILE_SCALE * f32(atlas.header.sprite_size[1]),
-				},
-				rotation = f32(0),
-				texture = rm.get_texture(manager, texture_name),
-				scripts = [dynamic]globals.ScriptHandle{},
+	append(
+		&ctx.layers[layer].objects,
+		RenderObject {
+			name = preset,
+			sprite = render_sprite.initialize_preset(manager, &sprite_shader, &preset_data, atlas),
+			position = offset,
+			size = {
+				f32(atlas.header.sprite_size[0]) * globals.TILE_SCALE * f32(preset_data.size[0]),
+				f32(atlas.header.sprite_size[1]) * globals.TILE_SCALE * f32(preset_data.size[1]),
 			},
-		)
-	}
+			rotation = f32(0),
+			texture = rm.get_texture(manager, atlas.header.name),
+			scripts = [dynamic]globals.ScriptHandle{},
+		},
+	)
+
+	//for tileset_id, i in preset_data.tile_ids {
+	//	texture_name := ""
+	//	for name, t in atlas.tiles {
+	//		if t.id == tileset_id {
+	//			texture_name = name
+	//			break
+	//		}
+	//	}
+
+	//	// append(
+	//	// 	&ctx.layers[layer].objects,
+	//	// 	RenderObject {
+	//	// 		name = texture_name,
+	//	// 		sprite = render_sprite.initialize_sprite(manager, &sprite_shader),
+	//	// 		position = {
+	//	// 			offset[0] +
+	//	// 			globals.TILE_SCALE *
+	//	// 				f32((i % preset_data.size[0])) *
+	//	// 				f32(atlas.header.sprite_size[0]),
+	//	// 			offset[1] +
+	//	// 			globals.TILE_SCALE *
+	//	// 				f32((i / preset_data.size[0])) *
+	//	// 				f32(atlas.header.sprite_size[1]),
+	//	// 		},
+	//	// 		size = {
+	//	// 			globals.TILE_SCALE * f32(atlas.header.sprite_size[0]),
+	//	// 			globals.TILE_SCALE * f32(atlas.header.sprite_size[1]),
+	//	// 		},
+	//	// 		rotation = f32(0),
+	//	// 		texture = rm.get_texture(manager, texture_name),
+	//	// 		scripts = [dynamic]globals.ScriptHandle{},
+	//	// 	},
+	//	// )
+	//}
 }

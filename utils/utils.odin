@@ -59,7 +59,6 @@ AddTexture :: struct {
 SharedContext :: struct {
 	game_focused:   bool,
 	window_size:    [2]i32,
-	selected_atlas: i32,
 	event_handlers: map[string]proc(state: ^SharedContext, args: ..any) -> ErrorMessage,
 	manager:        ^rm.ResourceManager,
 	render_context: globals.RendererContextHandle,

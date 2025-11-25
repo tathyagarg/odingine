@@ -290,12 +290,19 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> ^Texture {
 	return texture
 }
 
-load_atlas :: proc(rm: ^ResourceManager, atlas: ^atl.Atlas) -> map[string]^Texture {
-	textures := load_textures_from_atlas(atlas^)
+load_atlas :: proc(rm: ^ResourceManager, atlas: ^atl.Atlas) -> ^Texture {
+	texture := load_texture(
+		rm,
+		string(atlas.header.name),
+		filepath.join({filepath.dir(string(atlas.source)), string(atlas.header.filename)}),
+		true,
+	)
 
-	for name, _ in atlas.tiles {
-		assign_texture(rm, name, textures[name])
-	}
+	// textures := load_textures_from_atlas(atlas^)
+
+	// for name, _ in atlas.tiles {
+	// 	assign_texture(rm, name, textures[name])
+	// }
 
 	fmt.println("Loaded atlas: ", atlas)
 
@@ -304,7 +311,7 @@ load_atlas :: proc(rm: ^ResourceManager, atlas: ^atl.Atlas) -> map[string]^Textu
 
 	fmt.println("Header: ", atlas.header)
 
-	return textures
+	return texture
 }
 
 load_textures_from_atlas :: proc(atlas: atl.Atlas) -> map[string]^Texture {
