@@ -30,10 +30,11 @@ Header :: struct {
 }
 
 Atlas :: struct {
-	source:  cstring,
-	header:  Header,
-	tiles:   map[string]Tile,
-	presets: PresetManager,
+	raw_name: cstring,
+	source:   cstring,
+	header:   Header,
+	tiles:    map[string]Tile,
+	presets:  PresetManager,
 }
 
 add_preset :: proc(manager: ^PresetManager, name: string, preset: Preset) {
@@ -51,6 +52,8 @@ add_preset :: proc(manager: ^PresetManager, name: string, preset: Preset) {
 
 load_file :: proc(path: string) -> (string, string, bool) {
 	target: string = ""
+	fullpath: string = ""
+
 	if os.is_dir(path) {
 		handle, open_err := os.open(path)
 		if open_err != nil {
@@ -75,18 +78,20 @@ load_file :: proc(path: string) -> (string, string, bool) {
 			fmt.println("No atlas file found in directory: ", path)
 			return "", "", false
 		}
+
+		fullpath = filepath.join([]string{path, target})
 	} else {
 		target = path
+		fullpath = path
 	}
 
-	full_path := filepath.join([]string{path, target})
-	data, read_err := os.read_entire_file_from_filename_or_err(full_path)
+	data, read_err := os.read_entire_file_from_filename_or_err(fullpath)
 	if read_err != nil {
 		fmt.println("Error reading atlas file: ", read_err)
 		return "", "", false
 	}
 
-	return string(data), full_path, true
+	return string(data), fullpath, true
 }
 
 parse_header :: proc(path: string, data: string) -> Maybe(Header) {

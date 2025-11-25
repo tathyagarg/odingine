@@ -203,8 +203,11 @@ generate_texture :: proc(texture: ^Texture, width: i32, height: i32, data: [^]u8
 }
 
 assign_texture :: proc(rm: ^ResourceManager, name: string, texture: ^Texture) {
+	if _, exists := rm.texture_manager.textures[name]; !exists {
+		fmt.println("Assigning texture: ", name)
+		append(&rm.texture_manager.keys, name)
+	}
 	rm.texture_manager.textures[name] = texture
-	append(&rm.texture_manager.keys, name)
 }
 
 load_texture :: proc(
@@ -225,9 +228,9 @@ load_texture_without_assign :: proc(
 	file: string,
 	alpha: bool = true,
 ) -> ^Texture {
-	if tex_id, exists := rm.texture_manager.textures[name]; exists {
-		return rm.texture_manager.textures[name]
-	}
+	// if tex_id, exists := rm.texture_manager.textures[name]; exists {
+	// 	return rm.texture_manager.textures[name]
+	// }
 
 	texture := load_texture_from_file(strings.clone_to_cstring(file), alpha)
 	if texture == nil {
@@ -256,17 +259,6 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> ^Texture {
 	texture.filter_min = gl.NEAREST
 	texture.filter_max = gl.NEAREST
 
-	// texture = Texture {
-	// 	width           = 0,
-	// 	height          = 0,
-	// 	internal_format = gl.RGBA,
-	// 	image_format    = gl.RGBA,
-	// 	wrap_s          = gl.REPEAT,
-	// 	wrap_t          = gl.REPEAT,
-	// 	filter_min      = gl.NEAREST,
-	// 	filter_max      = gl.NEAREST,
-	// }
-
 	gl.GenTextures(1, &texture.id)
 
 	if alpha {
@@ -290,26 +282,17 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> ^Texture {
 	return texture
 }
 
-load_atlas :: proc(rm: ^ResourceManager, atlas: ^atl.Atlas) -> ^Texture {
+load_atlas :: proc(rm: ^ResourceManager, atlas: ^atl.Atlas, name: cstring) -> ^Texture {
 	texture := load_texture(
 		rm,
-		string(atlas.header.name),
+		string(name),
 		filepath.join({filepath.dir(string(atlas.source)), string(atlas.header.filename)}),
 		true,
 	)
 
-	// textures := load_textures_from_atlas(atlas^)
-
-	// for name, _ in atlas.tiles {
-	// 	assign_texture(rm, name, textures[name])
-	// }
-
-	fmt.println("Loaded atlas: ", atlas)
-
-	append(&rm.atlas_manager.keys, string(atlas.header.name))
-	rm.atlas_manager.atlases[string(atlas.header.name)] = atlas
-
-	fmt.println("Header: ", atlas.header)
+	append(&rm.atlas_manager.keys, string(name))
+	rm.atlas_manager.atlases[string(name)] = new(atl.Atlas)
+	rm.atlas_manager.atlases[string(name)]^ = atlas^
 
 	return texture
 }
@@ -378,54 +361,4 @@ load_textures_from_atlas :: proc(atlas: atl.Atlas) -> map[string]^Texture {
 
 	stb.image_free(image_data)
 	return textures
-}
-
-update_textures_from_atlas :: proc(rm: ^ResourceManager, atlas: ^atl.Atlas) {
-	image_data: [^]u8
-	width: i32
-	height: i32
-	nrChannels: i32
-
-	path := filepath.join({filepath.dir(string(atlas.source)), string(atlas.header.filename)})
-	image_data = stb.load(strings.clone_to_cstring(path), &width, &height, &nrChannels, 4)
-	if image_data == nil {
-		fmt.eprintfln("Failed to load texture atlas: %s\n", atlas.header.filename)
-		return
-	}
-
-	tile_width := i32(atlas.header.sprite_size[0])
-	tile_height := i32(atlas.header.sprite_size[1])
-
-	tiles_x := width / tile_width
-	tiles_y := height / tile_height
-
-	for y: i32 = 0; y < tiles_y; y += 1 {
-		for x: i32 = 0; x < tiles_x; x += 1 {
-			if (y * tiles_x) + x >= i32(atlas.header.sprite_count) {
-				break
-			}
-
-			tile_data: [^]u8 = raw_data(make([]u8, tile_width * tile_height * 4)[:])
-
-			for row: i32 = 0; row < tile_height; row += 1 {
-				src_start := ((y * tile_height + row) * width + (x * tile_width)) * 4
-				dest_start := row * tile_width * 4
-				copy(
-					tile_data[dest_start:dest_start + tile_width * 4],
-					image_data[src_start:src_start + tile_width * 4],
-				)
-			}
-
-			// Find the name corresponding to this tile index
-			for name, tile in atlas.tiles {
-				if i32(tile.position[0]) / tile_width == x &&
-				   i32(tile.position[1]) / tile_height == y {
-					if texture, exists := rm.texture_manager.textures[name]; exists {
-						generate_texture(texture, tile_width, tile_height, tile_data)
-					}
-					break
-				}
-			}
-		}
-	}
 }

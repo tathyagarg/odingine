@@ -15,12 +15,7 @@ ArgumentDescriptor :: struct {
 	type_info: typeid,
 }
 
-ScriptProc :: proc(
-	state: ^SharedContext,
-	target: globals.RenderObjectHandle,
-	action: i32,
-	args: rawptr,
-)
+ScriptProc :: proc(state: ^SharedContext, target: globals.RenderObjectHandle, args: rawptr)
 
 RegisteredScript :: struct {
 	script: globals.ScriptHandle,
@@ -71,6 +66,7 @@ SharedContext :: struct {
 	key_listeners:  map[int]proc(state: ^SharedContext, action: int),
 	script_manager: ScriptManager,
 	open_popups:    map[string]bool,
+	key_state:      map[i32]bool,
 }
 
 ErrorMessage :: enum {
@@ -111,6 +107,7 @@ default_shared_context :: proc() -> SharedContext {
 			registered_scripts = map[i32][dynamic]RegisteredScript{},
 		},
 		open_popups = map[string]bool{},
+		key_state = map[i32]bool{},
 	}
 }
 

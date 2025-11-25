@@ -188,12 +188,6 @@ initialize_preset :: proc(
 	gl.VertexAttribPointer(0, 4, gl.FLOAT, gl.FALSE, stride, uintptr(0))
 	gl.EnableVertexAttribArray(0)
 
-	// gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, stride, uintptr(0))
-	// gl.EnableVertexAttribArray(0)
-
-	// gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, stride, uintptr(2 * size_of(f32)))
-	// gl.EnableVertexAttribArray(1)
-
 	gl.BufferData(gl.ARRAY_BUFFER, len(verts) * size_of(f32), raw_data(verts), gl.STATIC_DRAW)
 
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)

@@ -2,6 +2,7 @@ package main
 
 import "base:runtime"
 import "core:fmt"
+import "core:strings"
 
 import imgui "../third_party/imgui"
 import imgui_glfw "../third_party/imgui/imgui_impl_glfw"
@@ -32,8 +33,8 @@ save_atlas :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessa
 	atlases := state.manager.atlas_manager.atlases
 
 	for name, atlas_ptr in atlases {
-		atl.save_atlas(atlases[name])
-		rm.update_textures_from_atlas(state.manager, atlases[name])
+		atl.save_atlas(atlas_ptr)
+		rm.load_atlas(state.manager, atlas_ptr, strings.clone_to_cstring(name))
 	}
 
 	for &layer in (^RendererContext)(state.render_context).layers {
@@ -64,9 +65,14 @@ load_atlas :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessa
 		fmt.println("Failed to load texture atlas from ", filepath)
 		return .FailedToLoadAtlas
 	}
-	atlas := res.?
 
-	rm.load_atlas(state.manager, &atlas)
+	atlas := res.?
+	atlas.raw_name = name
+
+	rm.load_atlas(state.manager, &atlas, name)
+
+	state.add_atlas.name = utils.empty_cstring(64)
+	state.add_atlas.filepath = utils.empty_cstring(256)
 
 	return nil
 }
@@ -231,17 +237,10 @@ key_callback :: proc "c" (
 	}
 
 	if (state.game_focused && ENVIRONMENT == .Development) || (ENVIRONMENT == .Production) {
-		if action == glfw.PRESS || action == glfw.REPEAT {
-			for registered_script in state.script_manager.registered_scripts[key] or_else {} {
-				script := (^scripts.Script)(registered_script.script)
-
-				script.key_listeners[key](
-					state,
-					registered_script.target,
-					action,
-					script.arguments,
-				)
-			}
+		if action == glfw.PRESS {
+			state.key_state[key] = true
+		} else if action == glfw.RELEASE {
+			state.key_state[key] = false
 		}
 	}
 }
@@ -385,10 +384,10 @@ main :: proc() {
 	for script_proc in scripts.DEFUALT_SCRIPTS {
 		script := script_proc()
 		fmt.println("Loaded script: ", (scripts.Script)(script).name)
-		if (scripts.Script)(script).name == "KeyboardMovement" {
+		if (scripts.Script)(script).name == "TopDownMovement" {
 			fmt.println(
 				"Arguments: ",
-				((^scripts.KeyboardMovementScriptInput)((scripts.Script)(script).arguments))^,
+				((^scripts.TopDownMovementScriptInput)((scripts.Script)(script).arguments))^,
 			)
 		}
 		append(&loaded_scripts, script)
@@ -411,48 +410,15 @@ main :: proc() {
 
 	glfw.SetWindowUserPointer(window, &state)
 
-	res := atl.parse(TILESET_TEXTURE_PATH)
-	if res == nil {
-		fmt.println("Failed to initialize texture atlas")
-		utils.terminate()
-		return
-	}
-	atlas := res.?
-
-	rm.load_atlas(manager, &atlas)
-
-	// rendering.render_atlas_preset(&render_context, manager, atlas, "showcase_1", 0)
-
-	// for tileset_id, i in atlas.presets["showcase_1"].tile_ids {
-	// 	texture_name := ""
-	// 	for name, t in atlas.tiles {
-	// 		if t.id == tileset_id {
-	// 			texture_name = name
-	// 			break
-	// 		}
-	// 	}
-
-	// 	append(
-	// 		&render_context.layers[0].objects,
-	// 		rendering.RenderObject {
-	// 			sprite = sprites.initialize_sprite(manager, &sprite_shader),
-	// 			position = {
-	// 				TILE_SCALE *
-	// 				f32((i % atlas.presets["showcase_1"].size[0])) *
-	// 				f32(atlas.header.sprite_size[0]),
-	// 				TILE_SCALE *
-	// 				f32((i / atlas.presets["showcase_1"].size[0])) *
-	// 				f32(atlas.header.sprite_size[1]),
-	// 			},
-	// 			size = {
-	// 				TILE_SCALE * f32(atlas.header.sprite_size[0]),
-	// 				TILE_SCALE * f32(atlas.header.sprite_size[1]),
-	// 			},
-	// 			rotation = f32(0),
-	// 			texture = rm.get_texture(manager, texture_name),
-	// 		},
-	// 	)
+	// res := atl.parse(TILESET_TEXTURE_PATH)
+	// if res == nil {
+	// 	fmt.println("Failed to initialize texture atlas")
+	// 	utils.terminate()
+	// 	return
 	// }
+	// atlas := res.?
+
+	// rm.load_atlas(manager, &atlas)
 
 	imgui.CreateContext()
 	imgui.StyleColorsDark()
@@ -485,6 +451,19 @@ main :: proc() {
 	for !glfw.WindowShouldClose(window) {
 		gl.Viewport(x, y, width, height)
 		gl.Scissor(x, y, width, height)
+
+		for key, key_state in state.key_state {
+			if !key_state {
+				continue
+			}
+
+			for registered_script in state.script_manager.registered_scripts[key] or_else {} {
+				script := (^scripts.Script)(registered_script.script)
+
+				script.key_listeners[key](&state, registered_script.target, script.arguments)
+			}
+		}
+
 		rendering.render(&render_context)
 
 		when (ENVIRONMENT == .Development) {

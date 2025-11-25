@@ -25,7 +25,7 @@ Script :: struct {
 	key_listeners:        map[i32]utils.ScriptProc,
 }
 
-KeyboardMovementScriptInput :: struct {
+TopDownMovementScriptInput :: struct {
 	speed:         f32,
 	front_texture: TextureType,
 	left_texture:  TextureType,
@@ -33,15 +33,11 @@ KeyboardMovementScriptInput :: struct {
 	back_texture:  TextureType,
 }
 
-DEFUALT_SCRIPTS :: []proc() -> Script{KeyboardMovementScript, MouseMovementScript}
+DEFUALT_SCRIPTS :: []proc() -> Script{TopDownMovementScript, MouseMovementScript}
 
-KeyboardMovementScript :: proc() -> Script {
-	arguments := new(KeyboardMovementScriptInput)
+TopDownMovementScript :: proc() -> Script {
+	arguments := new(TopDownMovementScriptInput)
 	arguments.speed = 20.0
-	// arguments.front_sprite_path = strings.unsafe_string_to_cstring(string(make([]u8, 64)[:0]))
-	// arguments.left_sprite_path = strings.unsafe_string_to_cstring(string(make([]u8, 64)[:0]))
-	// arguments.right_sprite_path = strings.unsafe_string_to_cstring(string(make([]u8, 64)[:0]))
-	// arguments.back_sprite_path = strings.unsafe_string_to_cstring(string(make([]u8, 64)[:0]))
 
 	field_count := 5
 
@@ -49,51 +45,50 @@ KeyboardMovementScript :: proc() -> Script {
 
 	argument_descriptors[0] = utils.ArgumentDescriptor {
 		name      = "Speed",
-		offset    = offset_of(KeyboardMovementScriptInput, speed),
+		offset    = offset_of(TopDownMovementScriptInput, speed),
 		type_info = typeid_of(f32),
 	}
 
 	argument_descriptors[1] = utils.ArgumentDescriptor {
 		name      = "Front Texture",
-		offset    = offset_of(KeyboardMovementScriptInput, front_texture),
+		offset    = offset_of(TopDownMovementScriptInput, front_texture),
 		type_info = typeid_of(TextureType),
 	}
 
 	argument_descriptors[2] = utils.ArgumentDescriptor {
 		name      = "Left Texture",
-		offset    = offset_of(KeyboardMovementScriptInput, left_texture),
+		offset    = offset_of(TopDownMovementScriptInput, left_texture),
 		type_info = typeid_of(TextureType),
 	}
 
 	argument_descriptors[3] = utils.ArgumentDescriptor {
 		name      = "Right Texture",
-		offset    = offset_of(KeyboardMovementScriptInput, right_texture),
+		offset    = offset_of(TopDownMovementScriptInput, right_texture),
 		type_info = typeid_of(TextureType),
 	}
 
 	argument_descriptors[4] = utils.ArgumentDescriptor {
 		name      = "Back Texture",
-		offset    = offset_of(KeyboardMovementScriptInput, back_texture),
+		offset    = offset_of(TopDownMovementScriptInput, back_texture),
 		type_info = typeid_of(TextureType),
 	}
 
 	return Script {
-		name = "KeyboardMovement",
+		name = "TopDownMovement",
 		description = "Handles basic keyboard movement controls.",
 		arguments = arguments,
-		argument_type = typeid_of(KeyboardMovementScriptInput),
+		argument_type = typeid_of(TopDownMovementScriptInput),
 		argument_descriptors = argument_descriptors,
 		key_listeners = map[i32]utils.ScriptProc {
 			glfw.KEY_W = proc(
 				state: ^utils.SharedContext,
 				target: globals.RenderObjectHandle,
-				action: i32,
 				args: rawptr,
 			) {
 				target := (^rendering.RenderObject)(target)
-				args := (^KeyboardMovementScriptInput)(args)
+				args := (^TopDownMovementScriptInput)(args)
 
-				if target != nil && (action == glfw.PRESS || action == glfw.REPEAT) {
+				if target != nil {
 					target.position[1] -= args.speed
 					texture := utils.texture_at_index(
 						&state.manager.texture_manager,
@@ -107,13 +102,12 @@ KeyboardMovementScript :: proc() -> Script {
 			glfw.KEY_S = proc(
 				state: ^utils.SharedContext,
 				target: globals.RenderObjectHandle,
-				action: i32,
 				args: rawptr,
 			) {
 				target := (^rendering.RenderObject)(target)
-				args := (^KeyboardMovementScriptInput)(args)
+				args := (^TopDownMovementScriptInput)(args)
 
-				if target != nil && (action == glfw.PRESS || action == glfw.REPEAT) {
+				if target != nil {
 					target.position[1] += args.speed
 					texture := utils.texture_at_index(
 						&state.manager.texture_manager,
@@ -127,13 +121,12 @@ KeyboardMovementScript :: proc() -> Script {
 			glfw.KEY_A = proc(
 				state: ^utils.SharedContext,
 				target: globals.RenderObjectHandle,
-				action: i32,
 				args: rawptr,
 			) {
 				target := (^rendering.RenderObject)(target)
-				args := (^KeyboardMovementScriptInput)(args)
+				args := (^TopDownMovementScriptInput)(args)
 
-				if target != nil && (action == glfw.PRESS || action == glfw.REPEAT) {
+				if target != nil {
 					target.position[0] -= args.speed
 					texture := utils.texture_at_index(
 						&state.manager.texture_manager,
@@ -147,13 +140,12 @@ KeyboardMovementScript :: proc() -> Script {
 			glfw.KEY_D = proc(
 				state: ^utils.SharedContext,
 				target: globals.RenderObjectHandle,
-				action: i32,
 				args: rawptr,
 			) {
 				target := (^rendering.RenderObject)(target)
-				args := (^KeyboardMovementScriptInput)(args)
+				args := (^TopDownMovementScriptInput)(args)
 
-				if target != nil && (action == glfw.PRESS || action == glfw.REPEAT) {
+				if target != nil {
 					target.position[0] += args.speed
 					texture := utils.texture_at_index(
 						&state.manager.texture_manager,

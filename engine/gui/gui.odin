@@ -24,6 +24,15 @@ COLOR_RED_ACTIVE :: imgui.Vec4{0.5, 0.1, 0.1, 1.0}
 
 COLOR_U32 :: imgui.GetColorU32ImVec4
 
+green_button :: proc(label: cstring, size: imgui.Vec2 = imgui.Vec2{0, 0}) -> bool {
+	imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_GREEN))
+	imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_GREEN_HOVERED))
+	imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_GREEN_ACTIVE))
+	result := imgui.Button(label, size)
+	imgui.PopStyleColor(3)
+	return result
+}
+
 findable_combo_input :: proc(
 	combo_id: cstring,
 	label: cstring,
@@ -32,7 +41,10 @@ findable_combo_input :: proc(
 ) {
 	imgui.PushID(combo_id)
 
-	if imgui.BeginCombo(label, strings.clone_to_cstring(options[(^i32)(selected_index)^])) {
+	name :=
+		strings.clone_to_cstring(options[(^i32)(selected_index)^]) if len(options) > 0 else strings.clone_to_cstring("")
+
+	if imgui.BeginCombo(label, name) {
 		@(static) filter: imgui.TextFilter
 		if imgui.IsWindowAppearing() {
 			imgui.SetKeyboardFocusHere()
@@ -74,35 +86,6 @@ texture_input :: proc(
 	imgui.SameLine()
 
 	findable_combo_input(combo_id, label, options, (^i32)(ptr))
-
-	// imgui.PushID(combo_id)
-
-	// if imgui.BeginCombo(label, strings.clone_to_cstring(texture_manager.keys[(^i32)(ptr)^])) {
-	// 	@(static) filter: imgui.TextFilter
-	// 	if imgui.IsWindowAppearing() {
-	// 		imgui.SetKeyboardFocusHere()
-	// 		imgui.TextFilter_Clear(&filter)
-	// 	}
-
-	// 	imgui.TextFilter_Draw(&filter, "##Filter", -1)
-
-	// 	for texture_name, texture_id in texture_manager.keys {
-	// 		if imgui.TextFilter_PassFilter(&filter, strings.clone_to_cstring(texture_name)) {
-	// 			imgui.PushID(
-	// 				strings.clone_to_cstring(fmt.aprintf("%s_%s", combo_id, texture_name)),
-	// 			)
-	// 			if imgui.Selectable(
-	// 				strings.clone_to_cstring(texture_name),
-	// 				(^i32)(ptr)^ == i32(texture_id),
-	// 			) {
-	// 				(^scripts.TextureType)(ptr)^ = scripts.TextureType(texture_id)
-	// 			}
-	// 			imgui.PopID()
-	// 		}
-	// 	}
-	// 	imgui.EndCombo()
-	// }
-	// imgui.PopID()
 }
 
 show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandle) {
@@ -150,71 +133,81 @@ general_information_window :: proc(
 		imgui.Checkbox("Game focused?", &ctx.game_focused)
 
 		if (imgui.CollapsingHeader("Texture Atlases")) {
-			for name, atlas_ptr in ctx.manager.atlas_manager.atlases {
-				imgui.SeparatorText(strings.clone_to_cstring(name))
+			findable_combo_input(
+				"atlas_listbox",
+				"Loaded Atlases",
+				ctx.manager.atlas_manager.keys[:],
+				&ctx.add_preset.atlas_name,
+			)
+
+			if i32(len(ctx.manager.atlas_manager.keys)) > ctx.add_preset.atlas_name {
+				atlas_name := ctx.manager.atlas_manager.keys[i32(ctx.selected_atlas)]
+				atlas := ctx.manager.atlas_manager.atlases[atlas_name]
 
 				imgui.InputText(
-					strings.clone_to_cstring(fmt.aprintf("Source##%s", name)),
-					atlas_ptr.header.filename,
+					strings.clone_to_cstring(fmt.aprintf("Source##%s", atlas_name)),
+					atlas.header.filename,
 					128,
 				)
 
-				if imgui.Button("Save") {
+				imgui.PushID(
+					strings.clone_to_cstring(fmt.aprintf("SaveAtlasButton%s", atlas_name)),
+				)
+				if green_button("Save", {imgui.GetContentRegionAvail()[0], 0}) {
 					ctx.event_handlers["save_atlas"](ctx)
+				}
+				imgui.PopID()
+
+				presets := []string{}
+				if i32(len(ctx.manager.atlas_manager.keys)) > ctx.add_preset.atlas_name {
+					presets = ctx.manager.atlas_manager.atlases[ctx.manager.atlas_manager.keys[i32(ctx.add_preset.atlas_name)]].presets.keys[:]
+				}
+
+				imgui.SeparatorText("Presets")
+
+				findable_combo_input(
+					"preset_combo",
+					"Preset##preset_combo",
+					presets,
+					&ctx.add_preset.preset_name,
+				)
+
+				findable_combo_input(
+					"layer_combo",
+					"Layer##layer_combo",
+					slice.mapper(
+						(^rendering.RendererContext)(ctx.render_context).layers[:],
+						proc(layer: rendering.RenderLayer) -> string {
+							return string(layer.name)
+						},
+					),
+					&ctx.add_preset.layer_index,
+				)
+
+				imgui.InputFloat2("Offset", &ctx.add_preset.offset)
+
+				if green_button("Load Preset", {imgui.GetContentRegionAvail()[0], 0}) {
+					err := ctx.event_handlers["render_atlas_preset"](ctx)
+					if err != nil {
+						ctx.error_message = fmt.aprintf("Failed to load atlas preset: %s", err)
+						imgui.OpenPopup("Error")
+					}
 				}
 			}
 
 			imgui.SeparatorText("Load Texture Atlas")
 
+			imgui.InputText(strings.clone_to_cstring("Name##atlas_name"), ctx.add_atlas.name, 64)
 			imgui.InputText(
 				strings.clone_to_cstring("Source##atlas_path"),
 				ctx.add_atlas.filepath,
 				256,
 			)
-			imgui.InputText(strings.clone_to_cstring("Name##atlas_name"), ctx.add_atlas.name, 64)
 
-			if imgui.Button("Load Atlas", {imgui.GetContentRegionAvail()[0], 0}) {
+			if green_button("Load Atlas", {imgui.GetContentRegionAvail()[0], 0}) {
 				err := ctx.event_handlers["load_atlas"](ctx)
 				if err != nil {
 					ctx.error_message = fmt.aprintf("Failed to load atlas: %s", err)
-					imgui.OpenPopup("Error")
-				}
-			}
-
-			imgui.SeparatorText("Load Preset")
-
-			findable_combo_input(
-				"atlas_combo",
-				"Atlas##atlas_combo",
-				ctx.manager.atlas_manager.keys[:],
-				&ctx.add_preset.atlas_name,
-			)
-
-			findable_combo_input(
-				"preset_combo",
-				"Preset##preset_combo",
-				ctx.manager.atlas_manager.atlases[ctx.manager.atlas_manager.keys[i32(ctx.add_preset.atlas_name)]].presets.keys[:],
-				&ctx.add_preset.preset_name,
-			)
-
-			findable_combo_input(
-				"layer_combo",
-				"Layer##layer_combo",
-				slice.mapper(
-					(^rendering.RendererContext)(ctx.render_context).layers[:],
-					proc(layer: rendering.RenderLayer) -> string {
-						return string(layer.name)
-					},
-				),
-				&ctx.add_preset.layer_index,
-			)
-
-			imgui.InputFloat2("Offset", &ctx.add_preset.offset)
-
-			if imgui.Button("Load Preset", {imgui.GetContentRegionAvail()[0], 0}) {
-				err := ctx.event_handlers["render_atlas_preset"](ctx)
-				if err != nil {
-					ctx.error_message = fmt.aprintf("Failed to load atlas preset: %s", err)
 					imgui.OpenPopup("Error")
 				}
 			}
@@ -255,10 +248,7 @@ general_information_window :: proc(
 
 			imgui.Spacing()
 
-			imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_GREEN))
-			imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_GREEN_HOVERED))
-			imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_GREEN_ACTIVE))
-			if imgui.Button(
+			if green_button(
 				"Add Object##add_object_button",
 				{imgui.GetContentRegionAvail()[0], 0},
 			) {
@@ -268,7 +258,6 @@ general_information_window :: proc(
 					imgui.OpenPopup("Error")
 				}
 			}
-			imgui.PopStyleColor(3)
 
 			imgui.Spacing()
 		}
@@ -388,11 +377,7 @@ general_information_window :: proc(
 
 			imgui.SameLine()
 
-			imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_GREEN))
-			imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_GREEN_HOVERED))
-			imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_GREEN_ACTIVE))
-
-			if imgui.Button("Load", imgui.Vec2{imgui.GetContentRegionAvail().x / 2 - 5, 0}) {
+			if green_button("Load", imgui.Vec2{imgui.GetContentRegionAvail().x / 2 - 5, 0}) {
 				ctx.event_handlers["make_texture_permanent_if_preview"](ctx)
 				err := ctx.event_handlers["load_texture"](ctx)
 				if err != nil {
@@ -402,8 +387,6 @@ general_information_window :: proc(
 					ctx.add_texture.source = utils.empty_cstring(256)
 				}
 			}
-
-			imgui.PopStyleColor(3)
 
 			imgui.SameLine()
 
@@ -426,26 +409,22 @@ general_information_window :: proc(
 		}
 	}
 
-	// if imgui.BeginPopupModal("Error", nil, {.AlwaysAutoResize}) {
-	// 	imgui.TextWrapped(strings.clone_to_cstring(ctx.error_message))
-	// 	imgui.Separator()
+	if imgui.BeginPopupModal("Error", nil, {.AlwaysAutoResize}) {
+		imgui.TextWrapped(strings.clone_to_cstring(ctx.error_message))
+		imgui.Separator()
 
-	// 	size: f32 = f32(ctx.window_size[0]) / 12.0
-	// 	available := imgui.GetContentRegionAvail().x
+		size: f32 = f32(ctx.window_size[0]) / 12.0
+		available := imgui.GetContentRegionAvail().x
 
-	// 	offset := (available - size) / 2
-	// 	imgui.SetCursorPosX(imgui.GetCursorPosX() + offset)
+		offset := (available - size) / 2
+		imgui.SetCursorPosX(imgui.GetCursorPosX() + offset)
 
-	// 	imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_GREEN))
-	// 	imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_GREEN_HOVERED))
-	// 	imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_GREEN_ACTIVE))
-	// 	if imgui.Button("OK", imgui.Vec2{size, 0}) {
-	// 		ctx.error_message = ""
-	// 		imgui.CloseCurrentPopup()
-	// 	}
-	// 	imgui.PopStyleColor(3)
-	// 	imgui.EndPopup()
-	// }
+		if green_button("OK", imgui.Vec2{size, 0}) {
+			ctx.error_message = ""
+			imgui.CloseCurrentPopup()
+		}
+		imgui.EndPopup()
+	}
 
 	imgui.End()
 
@@ -556,8 +535,8 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 						}
 
 						switch script_clone.argument_type {
-						case typeid_of(scripts.KeyboardMovementScriptInput):
-							args := (^scripts.KeyboardMovementScriptInput)(script_clone.arguments)
+						case typeid_of(scripts.TopDownMovementScriptInput):
+							args := (^scripts.TopDownMovementScriptInput)(script_clone.arguments)
 							this_texture := focused.texture.name
 
 							for texture_name, texture_id in ctx.manager.texture_manager.keys {
