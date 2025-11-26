@@ -141,7 +141,7 @@ general_information_window :: proc(
 			)
 
 			if i32(len(ctx.manager.atlas_manager.keys)) > ctx.add_preset.atlas_name {
-				atlas_name := ctx.manager.atlas_manager.keys[i32(ctx.selected_atlas)]
+				atlas_name := ctx.manager.atlas_manager.keys[i32(ctx.add_preset.atlas_name)]
 				atlas := ctx.manager.atlas_manager.atlases[atlas_name]
 
 				imgui.InputText(
@@ -527,38 +527,61 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 					script_clone := scripts.clone_script(script)
 
 					append(&focused.scripts, globals.ScriptHandle(script_clone))
-					fmt.println("Adding script:", script.name)
-					for key, _ in script_clone.key_listeners {
-						if ctx.script_manager.registered_scripts[key] == nil {
-							ctx.script_manager.registered_scripts[key] =
-								[dynamic]utils.RegisteredScript{}
-						}
 
-						switch script_clone.argument_type {
-						case typeid_of(scripts.TopDownMovementScriptInput):
-							args := (^scripts.TopDownMovementScriptInput)(script_clone.arguments)
-							this_texture := focused.texture.name
+					switch script_clone.argument_type {
+					case typeid_of(scripts.TopDownMovementScriptInput):
+						args := (^scripts.TopDownMovementScriptInput)(script_clone.arguments)
+						this_texture := focused.texture.name
 
-							for texture_name, texture_id in ctx.manager.texture_manager.keys {
-								if texture_name == this_texture {
-									args.front_texture = (scripts.TextureType)(texture_id)
-									args.left_texture = (scripts.TextureType)(texture_id)
-									args.right_texture = (scripts.TextureType)(texture_id)
-									args.back_texture = (scripts.TextureType)(texture_id)
-									break
-								}
+						for texture_name, texture_id in ctx.manager.texture_manager.keys {
+							if texture_name == this_texture {
+								args.front_texture = (scripts.TextureType)(texture_id)
+								args.left_texture = (scripts.TextureType)(texture_id)
+								args.right_texture = (scripts.TextureType)(texture_id)
+								args.back_texture = (scripts.TextureType)(texture_id)
+								break
 							}
 						}
-
-						append(
-							&ctx.script_manager.registered_scripts[key],
-							utils.RegisteredScript {
-								script = globals.ScriptHandle(script_clone),
-								target = ctx.focused_object,
-							},
-						)
-						fmt.println("Registered script for key:", key)
 					}
+
+					append(
+						&ctx.script_manager.registered_scripts,
+						utils.RegisteredScript {
+							script = globals.ScriptHandle(script_clone),
+							target = ctx.focused_object,
+						},
+					)
+					// for key, _ in script_clone.key_listeners {
+					// 	if ctx.script_manager.registered_scripts[key] == nil {
+					// 		ctx.script_manager.registered_scripts[key] =
+					// 			[dynamic]utils.RegisteredScript{}
+					// 	}
+
+					// 	switch script_clone.argument_type {
+					// 	case typeid_of(scripts.TopDownMovementScriptInput):
+					// 		args := (^scripts.TopDownMovementScriptInput)(script_clone.arguments)
+					// 		this_texture := focused.texture.name
+
+					// 		for texture_name, texture_id in ctx.manager.texture_manager.keys {
+					// 			if texture_name == this_texture {
+					// 				args.front_texture = (scripts.TextureType)(texture_id)
+					// 				args.left_texture = (scripts.TextureType)(texture_id)
+					// 				args.right_texture = (scripts.TextureType)(texture_id)
+					// 				args.back_texture = (scripts.TextureType)(texture_id)
+					// 				break
+					// 			}
+					// 		}
+					// 	}
+
+					// 	append(
+					// 		&ctx.script_manager.registered_scripts[key],
+					// 		utils.RegisteredScript {
+					// 			script = globals.ScriptHandle(script_clone),
+					// 			target = ctx.focused_object,
+					// 		},
+					// 	)
+					// 	fmt.println("Registered script for key:", key)
+					// }
 				}
 				imgui.SetItemTooltip(
 					strings.clone_to_cstring(

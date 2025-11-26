@@ -20,6 +20,7 @@ RenderObject :: struct {
 	sprite:   render_sprite.Sprite,
 	texture:  ^rm.Texture,
 	position: [2]f32,
+	velocity: [2]f32,
 	size:     [2]f32,
 	rotation: f32,
 	scripts:  [dynamic]globals.ScriptHandle,

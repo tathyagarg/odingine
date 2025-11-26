@@ -24,7 +24,7 @@ RegisteredScript :: struct {
 
 ScriptManager :: struct {
 	scripts:            []globals.ScriptHandle,
-	registered_scripts: map[i32][dynamic]RegisteredScript,
+	registered_scripts: [dynamic]RegisteredScript,
 }
 
 AddObject :: struct {
@@ -63,7 +63,6 @@ SharedContext :: struct {
 	add_preset:     AddPreset,
 	error_message:  string,
 	focused_object: globals.RenderObjectHandle,
-	key_listeners:  map[int]proc(state: ^SharedContext, action: int),
 	script_manager: ScriptManager,
 	open_popups:    map[string]bool,
 	key_state:      map[i32]bool,
@@ -101,10 +100,9 @@ default_shared_context :: proc() -> SharedContext {
 		},
 		error_message = "",
 		focused_object = nil,
-		key_listeners = map[int]proc(state: ^SharedContext, action: int){},
 		script_manager = ScriptManager {
 			scripts = []globals.ScriptHandle{},
-			registered_scripts = map[i32][dynamic]RegisteredScript{},
+			registered_scripts = [dynamic]RegisteredScript{},
 		},
 		open_popups = map[string]bool{},
 		key_state = map[i32]bool{},

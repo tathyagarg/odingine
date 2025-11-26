@@ -22,7 +22,8 @@ import "../utils/globals"
 RenderObject :: rendering.RenderObject
 RendererContext :: rendering.RendererContext
 
-ENVIRONMENT :: globals.Environment.Development
+ENVIRONMENT :: globals.Environment.Production
+DEBUG :: true
 
 TILESET_TEXTURE_PATH :: "resources/atlases/01_grass"
 
@@ -239,8 +240,17 @@ key_callback :: proc "c" (
 	if (state.game_focused && ENVIRONMENT == .Development) || (ENVIRONMENT == .Production) {
 		if action == glfw.PRESS {
 			state.key_state[key] = true
+			// fmt.println("Key pressed: ", int(key), state.script_manager.registered_scripts)
+			// for reg_script in (state.script_manager.registered_scripts[key] or_else {}) {
+			// 	script := (^scripts.Script)(reg_script.script)
+			// 	script.key_listeners[key](state, state.focused_object, script.arguments)
+			// }
 		} else if action == glfw.RELEASE {
 			state.key_state[key] = false
+			// for reg_script in (state.script_manager.registered_scripts[key] or_else {}) {
+			// 	script := (^scripts.Script)(reg_script.script)
+			// 	script.release_key_listeners[key](state, state.focused_object, script.arguments)
+			// }
 		}
 	}
 }
@@ -358,18 +368,6 @@ main :: proc() {
 		&projection,
 	)
 
-	sprite_shader := rm.get_shader(manager, "sprite")
-	// render_context.background = imgui.Vec4{0.2, 0.3, 0.4, 1.0}
-	_res := rm.load_texture(manager, "bg", "resources/textures/background.png")
-
-	render_context.background = &rendering.RenderObject {
-		sprite = sprites.initialize_sprite(manager, &sprite_shader),
-		position = [2]f32{0.0, 0.0},
-		size = [2]f32{f32(WINDOW_WIDTH), f32(WINDOW_HEIGHT)},
-		rotation = 0.0,
-		texture = rm.get_texture(manager, "bg"),
-	}
-
 	defer rendering.cleanup_renderer(&render_context)
 
 	rendering.add_layer(&render_context, "background", 0)
@@ -398,6 +396,59 @@ main :: proc() {
 		state.script_manager.scripts[i] = globals.ScriptHandle(&loaded_scripts[i])
 	}
 
+	when DEBUG {
+		sprite_shader := rm.get_shader(manager, "sprite")
+		_res := rm.load_texture(manager, "bg", "resources/textures/background.png")
+
+		render_context.background = &rendering.RenderObject {
+			sprite = sprites.initialize_sprite(manager, &sprite_shader),
+			position = [2]f32{0.0, 0.0},
+			size = [2]f32{f32(WINDOW_WIDTH), f32(WINDOW_HEIGHT)},
+			rotation = 0.0,
+			texture = rm.get_texture(manager, "bg"),
+		}
+
+		front := rm.load_texture(manager, "front", "resources/textures/character/front.png")
+		left := rm.load_texture(manager, "left", "resources/textures/character/left.png")
+		right := rm.load_texture(manager, "right", "resources/textures/character/right.png")
+		back := rm.load_texture(manager, "back", "resources/textures/character/back.png")
+
+		player := rendering.RenderObject {
+			name     = "player",
+			sprite   = sprites.initialize_sprite(manager, &sprite_shader),
+			position = [2]f32{100.0, 100.0},
+			size     = [2]f32{32.0, 32.0},
+			rotation = 0.0,
+			texture  = front,
+		}
+
+		append(&render_context.layers[1].objects, player)
+		player_ptr := &render_context.layers[1].objects[0]
+
+		script := (^scripts.Script)(state.script_manager.scripts[0])
+		clone := scripts.clone_script(script)
+		clone.arguments = new(scripts.TopDownMovementScriptInput)
+		(^scripts.TopDownMovementScriptInput)(clone.arguments)^ =
+			scripts.TopDownMovementScriptInput {
+				speed         = 10.0,
+				front_texture = 1,
+				left_texture  = 2,
+				right_texture = 3,
+				back_texture  = 4,
+			}
+		fmt.println((^scripts.TopDownMovementScriptInput)(clone.arguments)^)
+
+		append(&player.scripts, globals.ScriptHandle(clone))
+		append(
+			&state.script_manager.registered_scripts,
+			utils.RegisteredScript {
+				script = globals.ScriptHandle(clone),
+				target = globals.RenderObjectHandle(player_ptr),
+			},
+		)
+	}
+
+
 	state.event_handlers["save_atlas"] = save_atlas
 	state.event_handlers["load_atlas"] = load_atlas
 	state.event_handlers["add_object"] = add_object
@@ -409,16 +460,6 @@ main :: proc() {
 	state.event_handlers["render_atlas_preset"] = render_atlas_preset
 
 	glfw.SetWindowUserPointer(window, &state)
-
-	// res := atl.parse(TILESET_TEXTURE_PATH)
-	// if res == nil {
-	// 	fmt.println("Failed to initialize texture atlas")
-	// 	utils.terminate()
-	// 	return
-	// }
-	// atlas := res.?
-
-	// rm.load_atlas(manager, &atlas)
 
 	imgui.CreateContext()
 	imgui.StyleColorsDark()
@@ -452,19 +493,14 @@ main :: proc() {
 		gl.Viewport(x, y, width, height)
 		gl.Scissor(x, y, width, height)
 
-		for key, key_state in state.key_state {
-			if !key_state {
-				continue
-			}
+		rendering.render(&render_context)
 
-			for registered_script in state.script_manager.registered_scripts[key] or_else {} {
-				script := (^scripts.Script)(registered_script.script)
-
-				script.key_listeners[key](&state, registered_script.target, script.arguments)
+		if (state.game_focused && ENVIRONMENT == .Development) || (ENVIRONMENT == .Production) {
+			for reg_script in state.script_manager.registered_scripts {
+				script := (^scripts.Script)(reg_script.script)
+				script.update_callback(&state, reg_script.target, script.arguments)
 			}
 		}
-
-		rendering.render(&render_context)
 
 		when (ENVIRONMENT == .Development) {
 			gl.Viewport(0, 0, w, h)
