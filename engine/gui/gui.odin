@@ -71,6 +71,19 @@ findable_combo_input :: proc(
 	imgui.PopID()
 }
 
+tooltip :: proc(name: string, description: string) {
+	if (imgui.BeginItemTooltip()) {
+		imgui.PushTextWrapPos(imgui.GetFontSize() * 35.0)
+		imgui.Text(
+			strings.clone_to_cstring(
+				fmt.aprintf("%s\n%s\n%s", name, strings.repeat("-", len(name)), description),
+			),
+		)
+		imgui.PopTextWrapPos()
+		imgui.EndTooltip()
+	}
+}
+
 texture_input :: proc(
 	combo_id: cstring,
 	label: cstring,
@@ -551,37 +564,6 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 							target = ctx.focused_object,
 						},
 					)
-					// for key, _ in script_clone.key_listeners {
-					// 	if ctx.script_manager.registered_scripts[key] == nil {
-					// 		ctx.script_manager.registered_scripts[key] =
-					// 			[dynamic]utils.RegisteredScript{}
-					// 	}
-
-					// 	switch script_clone.argument_type {
-					// 	case typeid_of(scripts.TopDownMovementScriptInput):
-					// 		args := (^scripts.TopDownMovementScriptInput)(script_clone.arguments)
-					// 		this_texture := focused.texture.name
-
-					// 		for texture_name, texture_id in ctx.manager.texture_manager.keys {
-					// 			if texture_name == this_texture {
-					// 				args.front_texture = (scripts.TextureType)(texture_id)
-					// 				args.left_texture = (scripts.TextureType)(texture_id)
-					// 				args.right_texture = (scripts.TextureType)(texture_id)
-					// 				args.back_texture = (scripts.TextureType)(texture_id)
-					// 				break
-					// 			}
-					// 		}
-					// 	}
-
-					// 	append(
-					// 		&ctx.script_manager.registered_scripts[key],
-					// 		utils.RegisteredScript {
-					// 			script = globals.ScriptHandle(script_clone),
-					// 			target = ctx.focused_object,
-					// 		},
-					// 	)
-					// 	fmt.println("Registered script for key:", key)
-					// }
 				}
 				imgui.SetItemTooltip(
 					strings.clone_to_cstring(
@@ -599,63 +581,73 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 
 			for script_handle, i in focused.scripts {
 				script := (^scripts.Script)(script_handle)
-				imgui.SeparatorText(
-					strings.clone_to_cstring(fmt.aprintf("Script: %s", script.name)),
-				)
-
-				for arg_desc in script.argument_descriptors {
-					switch arg_desc.type_info {
-					case typeid_of(f32):
+				if (imgui.TreeNode(script.name)) {
+					for arg_desc in script.argument_descriptors {
 						ptr := rawptr(uintptr(script.arguments) + arg_desc.offset)
-						imgui.InputFloat(
-							strings.clone_to_cstring(
-								fmt.aprintf(
-									"%s##%s_%s",
-									arg_desc.name,
-									script.name,
-									arg_desc.name,
+						switch arg_desc.type_info {
+						case typeid_of(f32):
+							imgui.InputFloat(
+								strings.clone_to_cstring(
+									fmt.aprintf(
+										"%s##%s_%s",
+										arg_desc.name,
+										script.name,
+										arg_desc.name,
+									),
 								),
-							),
-							(^f32)(ptr),
-						)
-					case typeid_of(cstring):
-						ptr := rawptr(uintptr(script.arguments) + arg_desc.offset)
-						imgui.InputText(
-							strings.clone_to_cstring(
-								fmt.aprintf(
-									"%s##%s_%s",
-									arg_desc.name,
-									script.name,
-									arg_desc.name,
+								(^f32)(ptr),
+							)
+						case typeid_of(cstring):
+							imgui.InputText(
+								strings.clone_to_cstring(
+									fmt.aprintf(
+										"%s##%s_%s",
+										arg_desc.name,
+										script.name,
+										arg_desc.name,
+									),
 								),
-							),
-							(^cstring)(ptr)^,
-							256,
-						)
-					case typeid_of(scripts.TextureType):
-						ptr := rawptr(uintptr(script.arguments) + arg_desc.offset)
-
-						keys := ctx.manager.texture_manager.keys
-						names := strings.join(keys[:], "\x00")
-
-						texture_input(
-							strings.clone_to_cstring(
-								fmt.aprintf("%s_%s", script.name, arg_desc.name),
-							),
-							strings.clone_to_cstring(
-								fmt.aprintf(
-									"%s##%s_%s",
-									arg_desc.name,
-									script.name,
-									arg_desc.name,
+								(^cstring)(ptr)^,
+								256,
+							)
+						case typeid_of(bool):
+							imgui.Checkbox(
+								strings.clone_to_cstring(
+									fmt.aprintf(
+										"%s##%s_%s",
+										arg_desc.name,
+										script.name,
+										arg_desc.name,
+									),
 								),
-							),
-							keys[:],
-							(^scripts.TextureType)(ptr),
-							&ctx.manager.texture_manager,
-						)
+								(^bool)(ptr),
+							)
+						case typeid_of(scripts.TextureType):
+							keys := ctx.manager.texture_manager.keys
+							names := strings.join(keys[:], "\x00")
 
+							texture_input(
+								strings.clone_to_cstring(
+									fmt.aprintf("%s_%s", script.name, arg_desc.name),
+								),
+								strings.clone_to_cstring(
+									fmt.aprintf(
+										"%s##%s_%s",
+										arg_desc.name,
+										script.name,
+										arg_desc.name,
+									),
+								),
+								keys[:],
+								(^scripts.TextureType)(ptr),
+								&ctx.manager.texture_manager,
+							)
+						}
+						if arg_desc.tooltip != "" {
+							tooltip(arg_desc.name, arg_desc.tooltip)
+						}
 					}
+					imgui.TreePop()
 				}
 			}
 		} else {

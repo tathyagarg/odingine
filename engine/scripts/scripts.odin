@@ -2,9 +2,7 @@
 
 package scripts
 
-import "base:intrinsics"
 import "base:runtime"
-import "core:fmt"
 import "core:reflect"
 
 import "../../utils"
@@ -25,16 +23,15 @@ Script :: struct {
 	argument_descriptors: []utils.ArgumentDescriptor,
 	start_callback:       utils.ScriptProc,
 	update_callback:      utils.ScriptProc,
-	// key_listeners:         map[i32]utils.ScriptProc,
-	// release_key_listeners: map[i32]utils.ScriptProc,
 }
 
 TopDownMovementScriptInput :: struct {
-	speed:         f32,
-	front_texture: TextureType,
-	left_texture:  TextureType,
-	right_texture: TextureType,
-	back_texture:  TextureType,
+	speed:                f32,
+	limit_diagonal_speed: bool,
+	front_texture:        TextureType,
+	left_texture:         TextureType,
+	right_texture:        TextureType,
+	back_texture:         TextureType,
 }
 
 DEFUALT_SCRIPTS :: []proc() -> Script{TopDownMovementScript}
@@ -43,7 +40,7 @@ TopDownMovementScript :: proc() -> Script {
 	arguments := new(TopDownMovementScriptInput)
 	arguments.speed = 20.0
 
-	field_count := 5
+	field_count := 6
 
 	argument_descriptors := make([]utils.ArgumentDescriptor, field_count)
 
@@ -54,24 +51,31 @@ TopDownMovementScript :: proc() -> Script {
 	}
 
 	argument_descriptors[1] = utils.ArgumentDescriptor {
+		name      = "Limit Diagonal Speed",
+		offset    = offset_of(TopDownMovementScriptInput, limit_diagonal_speed),
+		type_info = typeid_of(bool),
+		tooltip   = "When disabled, when two movement keys of different axes are pressed (e.g., W and A), the character will move faster diagonally (two velocities add along the diagonal to give a resultant velocity sqrt(2) times the expected). Enabling this option normalizes diagonal movement speed to match single-axis movement speed.",
+	}
+
+	argument_descriptors[2] = utils.ArgumentDescriptor {
 		name      = "Front Texture",
 		offset    = offset_of(TopDownMovementScriptInput, front_texture),
 		type_info = typeid_of(TextureType),
 	}
 
-	argument_descriptors[2] = utils.ArgumentDescriptor {
+	argument_descriptors[3] = utils.ArgumentDescriptor {
 		name      = "Left Texture",
 		offset    = offset_of(TopDownMovementScriptInput, left_texture),
 		type_info = typeid_of(TextureType),
 	}
 
-	argument_descriptors[3] = utils.ArgumentDescriptor {
+	argument_descriptors[4] = utils.ArgumentDescriptor {
 		name      = "Right Texture",
 		offset    = offset_of(TopDownMovementScriptInput, right_texture),
 		type_info = typeid_of(TextureType),
 	}
 
-	argument_descriptors[4] = utils.ArgumentDescriptor {
+	argument_descriptors[5] = utils.ArgumentDescriptor {
 		name      = "Back Texture",
 		offset    = offset_of(TopDownMovementScriptInput, back_texture),
 		type_info = typeid_of(TextureType),
@@ -101,7 +105,7 @@ TopDownMovementScript :: proc() -> Script {
 			if key_state[glfw.KEY_W] {
 				delta_speed := args.speed
 
-				if key_state[glfw.KEY_A] || key_state[glfw.KEY_D] {
+				if args.limit_diagonal_speed && (key_state[glfw.KEY_A] || key_state[glfw.KEY_D]) {
 					delta_speed *= 0.7071
 				}
 
@@ -113,7 +117,7 @@ TopDownMovementScript :: proc() -> Script {
 			}
 			if key_state[glfw.KEY_S] {
 				delta_speed := args.speed
-				if key_state[glfw.KEY_A] || key_state[glfw.KEY_D] {
+				if args.limit_diagonal_speed && (key_state[glfw.KEY_A] || key_state[glfw.KEY_D]) {
 					delta_speed *= 0.7071
 				}
 
@@ -125,7 +129,7 @@ TopDownMovementScript :: proc() -> Script {
 			}
 			if key_state[glfw.KEY_A] {
 				delta_speed := args.speed
-				if key_state[glfw.KEY_W] || key_state[glfw.KEY_S] {
+				if args.limit_diagonal_speed && (key_state[glfw.KEY_W] || key_state[glfw.KEY_S]) {
 					delta_speed *= 0.7071
 				}
 
@@ -137,7 +141,7 @@ TopDownMovementScript :: proc() -> Script {
 			}
 			if key_state[glfw.KEY_D] {
 				delta_speed := args.speed
-				if key_state[glfw.KEY_W] || key_state[glfw.KEY_S] {
+				if args.limit_diagonal_speed && (key_state[glfw.KEY_W] || key_state[glfw.KEY_S]) {
 					delta_speed *= 0.7071
 				}
 

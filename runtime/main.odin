@@ -22,7 +22,7 @@ import "../utils/globals"
 RenderObject :: rendering.RenderObject
 RendererContext :: rendering.RendererContext
 
-ENVIRONMENT :: globals.Environment.Production
+ENVIRONMENT :: globals.Environment.Development
 DEBUG :: true
 
 TILESET_TEXTURE_PATH :: "resources/atlases/01_grass"
@@ -423,29 +423,6 @@ main :: proc() {
 		}
 
 		append(&render_context.layers[1].objects, player)
-		player_ptr := &render_context.layers[1].objects[0]
-
-		script := (^scripts.Script)(state.script_manager.scripts[0])
-		clone := scripts.clone_script(script)
-		clone.arguments = new(scripts.TopDownMovementScriptInput)
-		(^scripts.TopDownMovementScriptInput)(clone.arguments)^ =
-			scripts.TopDownMovementScriptInput {
-				speed         = 10.0,
-				front_texture = 1,
-				left_texture  = 2,
-				right_texture = 3,
-				back_texture  = 4,
-			}
-		fmt.println((^scripts.TopDownMovementScriptInput)(clone.arguments)^)
-
-		append(&player.scripts, globals.ScriptHandle(clone))
-		append(
-			&state.script_manager.registered_scripts,
-			utils.RegisteredScript {
-				script = globals.ScriptHandle(clone),
-				target = globals.RenderObjectHandle(player_ptr),
-			},
-		)
 	}
 
 

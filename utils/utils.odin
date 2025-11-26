@@ -13,6 +13,7 @@ ArgumentDescriptor :: struct {
 	name:      string,
 	offset:    uintptr,
 	type_info: typeid,
+	tooltip:   string,
 }
 
 ScriptProc :: proc(state: ^SharedContext, target: globals.RenderObjectHandle, args: rawptr)
