@@ -30,12 +30,15 @@ TILESET_TEXTURE_PATH :: "resources/atlases/01_grass"
 BASE_SPRITE_VERTEX_SHADER :: #load("../resources/shaders/02_sprite/sprite.vert")
 BASE_SPRITE_FRAGMENT_SHADER :: #load("../resources/shaders/02_sprite/sprite.frag")
 
+BASE_LINE_VERTEX_SHADER :: #load("../resources/shaders/03_line/line.vert")
+BASE_LINE_FRAGMENT_SHADER :: #load("../resources/shaders/03_line/line.frag")
+
 save_atlas :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessage {
 	atlases := state.manager.atlas_manager.atlases
 
 	for name, atlas_ptr in atlases {
 		atl.save_atlas(atlas_ptr)
-		rm.load_atlas(state.manager, atlas_ptr, strings.clone_to_cstring(name))
+		rm.load_atlas(state.manager, atlas_ptr)
 	}
 
 	for &layer in (^RendererContext)(state.render_context).layers {
@@ -52,11 +55,8 @@ save_atlas :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessa
 
 load_atlas :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessage {
 	filepath := state.add_atlas.filepath
-	name := state.add_atlas.name
 
-	fmt.println("Loading atlas from ", filepath, " with name ", name)
-
-	if len(filepath) == 0 || len(name) == 0 {
+	if len(filepath) == 0 {
 		fmt.println("Atlas filepath and name cannot be empty.")
 		return .EmptyNameOrTextureSource
 	}
@@ -68,11 +68,9 @@ load_atlas :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessa
 	}
 
 	atlas := res.?
-	atlas.raw_name = name
 
-	rm.load_atlas(state.manager, &atlas, name)
+	rm.load_atlas(state.manager, &atlas)
 
-	state.add_atlas.name = utils.empty_cstring(64)
 	state.add_atlas.filepath = utils.empty_cstring(256)
 
 	return nil
@@ -240,17 +238,8 @@ key_callback :: proc "c" (
 	if (state.game_focused && ENVIRONMENT == .Development) || (ENVIRONMENT == .Production) {
 		if action == glfw.PRESS {
 			state.key_state[key] = true
-			// fmt.println("Key pressed: ", int(key), state.script_manager.registered_scripts)
-			// for reg_script in (state.script_manager.registered_scripts[key] or_else {}) {
-			// 	script := (^scripts.Script)(reg_script.script)
-			// 	script.key_listeners[key](state, state.focused_object, script.arguments)
-			// }
 		} else if action == glfw.RELEASE {
 			state.key_state[key] = false
-			// for reg_script in (state.script_manager.registered_scripts[key] or_else {}) {
-			// 	script := (^scripts.Script)(reg_script.script)
-			// 	script.release_key_listeners[key](state, state.focused_object, script.arguments)
-			// }
 		}
 	}
 }
@@ -368,6 +357,13 @@ main :: proc() {
 		&projection,
 	)
 
+	rm.load_shader(
+		manager,
+		"line",
+		string(BASE_LINE_VERTEX_SHADER),
+		string(BASE_LINE_FRAGMENT_SHADER),
+	)
+
 	defer rendering.cleanup_renderer(&render_context)
 
 	rendering.add_layer(&render_context, "background", 0)
@@ -408,21 +404,36 @@ main :: proc() {
 			texture = rm.get_texture(manager, "bg"),
 		}
 
-		front := rm.load_texture(manager, "front", "resources/textures/character/front.png")
-		left := rm.load_texture(manager, "left", "resources/textures/character/left.png")
-		right := rm.load_texture(manager, "right", "resources/textures/character/right.png")
-		back := rm.load_texture(manager, "back", "resources/textures/character/back.png")
+		atlas := atl.parse(TILESET_TEXTURE_PATH).?
 
-		player := rendering.RenderObject {
-			name     = "player",
-			sprite   = sprites.initialize_sprite(manager, &sprite_shader),
-			position = [2]f32{100.0, 100.0},
-			size     = [2]f32{32.0, 32.0},
-			rotation = 0.0,
-			texture  = front,
-		}
+		fmt.println("Loaded atlas: ", atlas)
 
-		append(&render_context.layers[1].objects, player)
+		rm.load_atlas(manager, &atlas)
+
+		rendering.render_atlas_preset(
+			&render_context,
+			manager,
+			&atlas,
+			"showcase_1",
+			0,
+			[2]f32{0.0, 0.0},
+		)
+
+		// front := rm.load_texture(manager, "front", "resources/textures/character/front.png")
+		// left := rm.load_texture(manager, "left", "resources/textures/character/left.png")
+		// right := rm.load_texture(manager, "right", "resources/textures/character/right.png")
+		// back := rm.load_texture(manager, "back", "resources/textures/character/back.png")
+
+		// player := rendering.RenderObject {
+		// 	name     = "player",
+		// 	sprite   = sprites.initialize_sprite(manager, &sprite_shader),
+		// 	position = [2]f32{100.0, 100.0},
+		// 	size     = [2]f32{32.0, 32.0},
+		// 	rotation = 0.0,
+		// 	texture  = front,
+		// }
+
+		// append(&render_context.layers[1].objects, player)
 	}
 
 
@@ -460,6 +471,28 @@ main :: proc() {
 	glfw.SetKeyCallback(window, key_callback)
 	glfw.SetMouseButtonCallback(window, mouse_callback)
 
+	grid_vao, grid_vbo: u32
+	grid_verts, grid_vert_count := utils.make_grid(50, 32 * TILE_SCALE)
+
+	fmt.println("Grid vert count: ", grid_vert_count, " verts: ", grid_verts)
+
+	gl.GenVertexArrays(1, &grid_vao)
+	gl.GenBuffers(1, &grid_vbo)
+
+	gl.BindVertexArray(grid_vao)
+	gl.BindBuffer(gl.ARRAY_BUFFER, grid_vbo)
+
+	gl.BufferData(
+		gl.ARRAY_BUFFER,
+		len(grid_verts) * size_of(f32),
+		raw_data(grid_verts),
+		gl.STATIC_DRAW,
+	)
+	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, 2 * size_of(f32), uintptr(0))
+	gl.EnableVertexAttribArray(0)
+
+	gl.BindVertexArray(0)
+
 	imgui.SetNextWindowPos(
 		imgui.Vec2{f32(0), f32(0)},
 		imgui.Cond.Always,
@@ -477,6 +510,17 @@ main :: proc() {
 				script := (^scripts.Script)(reg_script.script)
 				script.update_callback(&state, reg_script.target, script.arguments)
 			}
+		}
+
+		if (state.editing_preset) {
+			shader := rm.get_shader(manager, "line")
+			rm.use_shader(&shader)
+
+			rm.set_matrix4("projection", &projection, &shader)
+
+			gl.BindVertexArray(grid_vao)
+			gl.DrawArrays(gl.LINES, 0, i32(grid_vert_count))
+			gl.BindVertexArray(0)
 		}
 
 		when (ENVIRONMENT == .Development) {

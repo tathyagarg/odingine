@@ -282,17 +282,19 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> ^Texture {
 	return texture
 }
 
-load_atlas :: proc(rm: ^ResourceManager, atlas: ^atl.Atlas, name: cstring) -> ^Texture {
+load_atlas :: proc(rm: ^ResourceManager, atlas: ^atl.Atlas) -> ^Texture {
+	name := atlas.header.name
+
 	texture := load_texture(
 		rm,
-		string(name),
+		name,
 		filepath.join({filepath.dir(string(atlas.source)), string(atlas.header.filename)}),
 		true,
 	)
 
-	append(&rm.atlas_manager.keys, string(name))
-	rm.atlas_manager.atlases[string(name)] = new(atl.Atlas)
-	rm.atlas_manager.atlases[string(name)]^ = atlas^
+	append(&rm.atlas_manager.keys, name)
+	rm.atlas_manager.atlases[name] = new(atl.Atlas)
+	rm.atlas_manager.atlases[name]^ = atlas^
 
 	return texture
 }

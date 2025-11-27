@@ -36,7 +36,6 @@ AddObject :: struct {
 }
 
 AddAtlas :: struct {
-	name:     cstring,
 	filepath: cstring,
 }
 
@@ -54,6 +53,7 @@ AddTexture :: struct {
 
 SharedContext :: struct {
 	game_focused:   bool,
+	editing_preset: bool,
 	window_size:    [2]i32,
 	event_handlers: map[string]proc(state: ^SharedContext, args: ..any) -> ErrorMessage,
 	manager:        ^rm.ResourceManager,
@@ -91,7 +91,7 @@ default_shared_context :: proc() -> SharedContext {
 			position = [2]f32{0.0, 0.0},
 			layer = 0,
 		},
-		add_atlas = AddAtlas{name = empty_cstring(64), filepath = empty_cstring(256)},
+		add_atlas = AddAtlas{filepath = empty_cstring(256)},
 		add_texture = AddTexture{name = empty_cstring(64), source = empty_cstring(256)},
 		add_preset = AddPreset {
 			atlas_name = 0,
@@ -162,4 +162,32 @@ texture_at_index :: proc(
 
 empty_cstring :: proc(length: int) -> cstring {
 	return strings.unsafe_string_to_cstring(string(make([]u8, length)[:0]))
+}
+
+make_grid :: proc(n: int, cell: f32) -> ([]f32, int) {
+	count := n * 4
+	verts := make([]f32, count * 2)
+
+	index := 0
+	size := f32(n) * cell
+
+	for i in 0 ..< n {
+		pos := f32(i) * cell
+
+		// Vertical line
+		verts[index] = pos
+		verts[index + 1] = 0.0
+		verts[index + 2] = pos
+		verts[index + 3] = size
+		index += 4
+
+		// Horizontal line
+		verts[index] = 0.0
+		verts[index + 1] = pos
+		verts[index + 2] = size
+		verts[index + 3] = pos
+		index += 4
+	}
+
+	return verts, index / 2
 }

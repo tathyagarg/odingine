@@ -18,6 +18,7 @@ Sprite :: struct {
 	quad_vao:     u32,
 	vbo:          u32,
 	vertex_count: i32,
+	hovered:      bool,
 }
 
 SQUARE_VERTICES :: [?]f32 {
@@ -109,6 +110,57 @@ add_tile_quad :: proc(verts: []f32, idx: ^int, px, py: f32, uv: [4]f32, tile_w, 
 	idx^ += 4
 }
 
+add_isometric_tile_quad :: proc(
+	verts: []f32,
+	idx: ^int,
+	px, py: f32,
+	uv: [4]f32,
+	tile_w, tile_h: f32,
+) {
+	half_w := tile_w / 1.0
+	half_h := tile_h / 2.0
+
+	s_x := (px - py) * 0.5
+	s_y := (px + py) * 0.25
+
+	verts[idx^] = s_x
+	verts[idx^ + 1] = s_y
+	verts[idx^ + 2] = uv[0]
+	verts[idx^ + 3] = uv[1]
+	idx^ += 4
+
+	verts[idx^] = s_x + half_w
+	verts[idx^ + 1] = s_y + half_h
+	verts[idx^ + 2] = uv[2]
+	verts[idx^ + 3] = uv[1]
+	idx^ += 4
+
+	verts[idx^] = s_x
+	verts[idx^ + 1] = s_y + (2 * half_h)
+	verts[idx^ + 2] = uv[2]
+	verts[idx^ + 3] = uv[3]
+	idx^ += 4
+
+	// Second triangle
+	verts[idx^] = s_x
+	verts[idx^ + 1] = s_y
+	verts[idx^ + 2] = uv[0]
+	verts[idx^ + 3] = uv[1]
+	idx^ += 4
+
+	verts[idx^] = s_x
+	verts[idx^ + 1] = s_y + (2 * half_h)
+	verts[idx^ + 2] = uv[2]
+	verts[idx^ + 3] = uv[3]
+	idx^ += 4
+
+	verts[idx^] = s_x - half_w
+	verts[idx^ + 1] = s_y + half_h
+	verts[idx^ + 2] = uv[0]
+	verts[idx^ + 3] = uv[3]
+	idx^ += 4
+}
+
 get_uv :: proc(atlas: ^atl.Atlas, tile_id: int) -> [4]f32 {
 	tile_w := atlas.header.sprite_size[0]
 	tile_h := atlas.header.sprite_size[1]
@@ -161,9 +213,12 @@ initialize_preset :: proc(
 			uv := get_uv(atlas, tile)
 			px, py := f32(tile_x) * tile_w, f32(tile_y) * tile_h
 
+			// add_isometric_tile_quad(verts, &index, px, py, uv, tile_w, tile_h)
 			add_tile_quad(verts, &index, px, py, uv, tile_w, tile_h)
 		}
 	}
+
+	fmt.println("verts: ", verts)
 
 	for vert, i in verts {
 		if i % 4 == 0 {
@@ -174,6 +229,8 @@ initialize_preset :: proc(
 			verts[i] *= 1 / (tile_h * f32(preset_h))
 		}
 	}
+
+	fmt.println("verts: ", verts)
 
 	sprite.vertex_count = i32(index) / FLOATS_PER_VERTEX
 
@@ -220,6 +277,7 @@ draw_sprite :: proc(
 	model = mat_math.scale(model, [3]f32{size[0], size[1], 1.0})
 
 	rm.set_matrix4("model", &model, &sprite.shader)
+	rm.set_integer("hovered", 1 if sprite.hovered else 0, &sprite.shader)
 
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, texture.id)

@@ -30,11 +30,10 @@ Header :: struct {
 }
 
 Atlas :: struct {
-	raw_name: cstring,
-	source:   cstring,
-	header:   Header,
-	tiles:    map[string]Tile,
-	presets:  PresetManager,
+	source:  cstring,
+	header:  Header,
+	tiles:   map[string]Tile,
+	presets: PresetManager,
 }
 
 add_preset :: proc(manager: ^PresetManager, name: string, preset: Preset) {

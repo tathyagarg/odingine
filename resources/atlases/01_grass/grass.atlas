@@ -1,38 +1,56 @@
 header:
   name: grass
-  src: tileset_shift.png
+  src: tileset_grass.png
   count: 62
   sprite_size: 32 32
   atlas_size: 8 8
 
 tiles:
+  stone_full_8_horrible_flip:
+    pos: 160 224
+    id: 61
+  stone_bl:
+    pos: 192 192
+    id: 54
+  stone_full_4_decent:
+    pos: 32 160
+    id: 41
+  flower_grass_1:
+    pos: 128 0
+    id: 4
+  flower_grass_13:
+    pos: 128 96
+    id: 28
+  flower_grass_16:
+    pos: 224 96
+    id: 31
+  stone_right_1_good:
+    pos: 96 128
+    id: 35
+  stone_right_4_horrible:
+    pos: 96 224
+    id: 59
+  stone_top_3_bad:
+    pos: 192 160
+    id: 46
   grass_3:
     pos: 64 0
     id: 2
   grass_4:
     pos: 96 0
     id: 3
-  stone_right_3_bad:
-    pos: 96 192
-    id: 51
-  stone_top_1_good:
-    pos: 128 160
-    id: 44
-  stone_left_2_decent:
-    pos: 64 160
-    id: 42
-  flower_grass_12:
-    pos: 224 64
-    id: 23
-  flower_grass_15:
-    pos: 192 96
-    id: 30
-  stone_top_4_horrible:
-    pos: 224 160
-    id: 47
-  stone_tr:
-    pos: 160 192
-    id: 53
+  grass_10:
+    pos: 32 64
+    id: 17
+  stone_bottom_1_good:
+    pos: 128 128
+    id: 36
+  stone_full_3_decent:
+    pos: 0 160
+    id: 40
+  stone_full_6_bad:
+    pos: 32 192
+    id: 49
   flower_grass_9:
     pos: 128 64
     id: 20
@@ -45,39 +63,45 @@ tiles:
   stone_left_4_horrible:
     pos: 64 224
     id: 58
-  stone_full_2_good:
-    pos: 32 128
-    id: 33
+  flower_grass_11:
+    pos: 192 64
+    id: 22
+  flower_grass_14:
+    pos: 160 96
+    id: 29
   grass_1:
     pos: 0 0
     id: 0
-  stone_top_3_bad:
-    pos: 192 160
-    id: 46
+  grass_13:
+    pos: 0 96
+    id: 24
+  grass_16:
+    pos: 96 96
+    id: 27
+  stone_right_3_bad:
+    pos: 96 192
+    id: 51
   stone_br:
     pos: 224 192
     id: 55
-  flower_grass_10:
-    pos: 160 64
-    id: 21
-  stone_tl:
-    pos: 128 192
-    id: 52
+  stone_full_5_bad:
+    pos: 0 192
+    id: 48
+  stone_left_2_decent:
+    pos: 64 160
+    id: 42
   stone_full_7_horrible:
     pos: 0 224
     id: 56
-  grass_12:
-    pos: 96 64
-    id: 19
-  grass_15:
-    pos: 64 96
-    id: 26
   stone_full_8_horrible:
     pos: 32 224
     id: 57
   flower_grass_5:
     pos: 128 32
     id: 12
+  stone_tr:
+    pos: 160 192
+    id: 53
   grass_9:
     pos: 0 64
     id: 16
@@ -87,93 +111,6 @@ tiles:
   grass_7:
     pos: 64 32
     id: 10
-  stone_left_3_bad:
-    pos: 64 192
-    id: 50
-  stone_top_2_decent:
-    pos: 160 160
-    id: 45
-  stone_left_1_good:
-    pos: 64 128
-    id: 34
-  flower_grass_13:
-    pos: 128 96
-    id: 28
-  flower_grass_16:
-    pos: 224 96
-    id: 31
-  grass_10:
-    pos: 32 64
-    id: 17
-  stone_full_5_bad:
-    pos: 0 192
-    id: 48
-  flower_grass_8:
-    pos: 224 32
-    id: 15
-  flower_grass_6:
-    pos: 160 32
-    id: 13
-  grass_5:
-    pos: 0 32
-    id: 8
-  stone_full_8_horrible_flip:
-    pos: 160 224
-    id: 61
-  stone_bottom_2_decent:
-    pos: 160 128
-    id: 37
-  stone_full_4_decent:
-    pos: 32 160
-    id: 41
-  stone_bl:
-    pos: 192 192
-    id: 54
-  flower_grass_11:
-    pos: 192 64
-    id: 22
-  flower_grass_14:
-    pos: 160 96
-    id: 29
-  grass_13:
-    pos: 0 96
-    id: 24
-  grass_16:
-    pos: 96 96
-    id: 27
-  stone_full_7_horrible_flip:
-    pos: 128 224
-    id: 60
-  flower_grass_3:
-    pos: 192 0
-    id: 6
-  flower_grass_4:
-    pos: 224 0
-    id: 7
-  stone_full_1_good:
-    pos: 0 128
-    id: 32
-  grass_8:
-    pos: 96 32
-    id: 11
-  grass_6:
-    pos: 32 32
-    id: 9
-  stone_bottom_1_good:
-    pos: 128 128
-    id: 36
-  stone_full_3_decent:
-    pos: 0 160
-    id: 40
-  stone_full_6_bad:
-    pos: 32 192
-    id: 49
-  stone_bottom_4_horrible:
-    pos: 224 128
-    id: 39
-  stone_right_2_decent:
-    pos: 96 160
-    id: 43
   grass_11:
     pos: 64 64
     id: 18
@@ -183,15 +120,78 @@ tiles:
   stone_bottom_3_bad:
     pos: 192 128
     id: 38
-  flower_grass_1:
-    pos: 128 0
-    id: 4
-  stone_right_1_good:
-    pos: 96 128
-    id: 35
-  stone_right_4_horrible:
-    pos: 96 224
-    id: 59
+  stone_left_1_good:
+    pos: 64 128
+    id: 34
+  stone_full_7_horrible_flip:
+    pos: 128 224
+    id: 60
+  stone_top_1_good:
+    pos: 128 160
+    id: 44
+  flower_grass_8:
+    pos: 224 32
+    id: 15
+  flower_grass_6:
+    pos: 160 32
+    id: 13
+  flower_grass_12:
+    pos: 224 64
+    id: 23
+  flower_grass_15:
+    pos: 192 96
+    id: 30
+  stone_top_4_horrible:
+    pos: 224 160
+    id: 47
+  grass_5:
+    pos: 0 32
+    id: 8
+  stone_bottom_2_decent:
+    pos: 160 128
+    id: 37
+  stone_bottom_4_horrible:
+    pos: 224 128
+    id: 39
+  stone_right_2_decent:
+    pos: 96 160
+    id: 43
+  stone_left_3_bad:
+    pos: 64 192
+    id: 50
+  stone_top_2_decent:
+    pos: 160 160
+    id: 45
+  stone_full_2_good:
+    pos: 32 128
+    id: 33
+  flower_grass_3:
+    pos: 192 0
+    id: 6
+  flower_grass_4:
+    pos: 224 0
+    id: 7
+  flower_grass_10:
+    pos: 160 64
+    id: 21
+  stone_full_1_good:
+    pos: 0 128
+    id: 32
+  grass_8:
+    pos: 96 32
+    id: 11
+  stone_tl:
+    pos: 128 192
+    id: 52
+  grass_6:
+    pos: 32 32
+    id: 9
+  grass_12:
+    pos: 96 64
+    id: 19
+  grass_15:
+    pos: 64 96
+    id: 26
 
 presets:
   showcase_1:

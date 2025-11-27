@@ -164,7 +164,7 @@ render_atlas_preset :: proc(
 				f32(atlas.header.sprite_size[1]) * globals.TILE_SCALE * f32(preset_data.size[1]),
 			},
 			rotation = f32(0),
-			texture = rm.get_texture(manager, string(atlas.raw_name)),
+			texture = rm.get_texture(manager, atlas.header.name),
 			scripts = [dynamic]globals.ScriptHandle{},
 		},
 	)

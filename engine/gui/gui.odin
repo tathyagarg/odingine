@@ -144,6 +144,14 @@ general_information_window :: proc(
 		}
 
 		imgui.Checkbox("Game focused?", &ctx.game_focused)
+		imgui.Checkbox("Editing preset?", &ctx.editing_preset)
+		// if imgui.Checkbox("Editing preset?", &ctx.editing_preset) {
+		// 	for &layer in (^rendering.RendererContext)(ctx.render_context).layers {
+		// 		for &obj in layer.objects {
+		// 			obj.sprite.hovered = ctx.editing_preset
+		// 		}
+		// 	}
+		// }
 
 		if (imgui.CollapsingHeader("Texture Atlases")) {
 			findable_combo_input(
@@ -210,7 +218,6 @@ general_information_window :: proc(
 
 			imgui.SeparatorText("Load Texture Atlas")
 
-			imgui.InputText(strings.clone_to_cstring("Name##atlas_name"), ctx.add_atlas.name, 64)
 			imgui.InputText(
 				strings.clone_to_cstring("Source##atlas_path"),
 				ctx.add_atlas.filepath,
