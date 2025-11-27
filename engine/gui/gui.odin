@@ -24,6 +24,90 @@ COLOR_RED_ACTIVE :: imgui.Vec4{0.5, 0.1, 0.1, 1.0}
 
 COLOR_U32 :: imgui.GetColorU32ImVec4
 
+load_texture_popup :: proc(ctx: ^utils.SharedContext) {
+	imgui.SetNextWindowPos(imgui.GetMainViewport().Pos)
+	imgui.SetNextWindowSize(imgui.GetMainViewport().Size)
+
+	pos := imgui.GetMainViewport().Pos
+	size := imgui.GetMainViewport().Size
+
+	// imgui.SetNextWindowSize(imgui.Vec2{size.x / 2, size.y / 2})
+	imgui.SetNextWindowSizeConstraints(imgui.Vec2{0, 0}, imgui.Vec2{size.x / 3, 200})
+	imgui.SetNextWindowPos(
+		imgui.Vec2{pos.x + size.x / 3, pos.y + size.y / 3},
+		imgui.Cond.Appearing,
+	)
+
+	if imgui.Begin(
+		"Load Texture Modal",
+		&ctx.open_popups["load_texture"],
+		{.NoResize, .NoCollapse, .AlwaysAutoResize},
+	) {
+		if ctx.manager.preview_texture != nil {
+			preview_texture := (^rm.Texture)(ctx.manager.preview_texture)
+			texture_size_x := 128
+			texture_size_y := 128 * preview_texture.height / preview_texture.width
+
+			imgui.Image(
+				u64(preview_texture.id),
+				imgui.Vec2{f32(texture_size_x), f32(texture_size_y)},
+			)
+		} else {
+			imgui.Text("No preview available")
+		}
+
+		imgui.SameLine()
+
+		imgui.BeginGroup()
+
+		imgui.Text("Texture Details")
+
+		imgui.InputText("Name", ctx.add_texture.name, 64)
+		imgui.InputText("Source", ctx.add_texture.source, 256)
+
+		imgui.Separator()
+
+		if imgui.Button("Preview", imgui.Vec2{imgui.GetContentRegionAvail().x / 3 - 5, 0}) {
+			err := ctx.event_handlers["load_texture_preview"](ctx)
+			if err != nil {
+				ctx.error_message = fmt.aprintf("Failed to preview texture: %s", err)
+			}
+		}
+
+		imgui.SameLine()
+
+		if green_button("Load", imgui.Vec2{imgui.GetContentRegionAvail().x / 2 - 5, 0}) {
+			ctx.event_handlers["make_texture_permanent_if_preview"](ctx)
+			err := ctx.event_handlers["load_texture"](ctx)
+			if err != nil {
+				ctx.error_message = fmt.aprintf("Failed to load texture: %s", err)
+			} else {
+				ctx.add_texture.name = utils.empty_cstring(64)
+				ctx.add_texture.source = utils.empty_cstring(256)
+			}
+		}
+
+		imgui.SameLine()
+
+		imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_RED))
+		imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_RED_HOVERED))
+		imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_RED_ACTIVE))
+
+		if imgui.Button("Cancel", imgui.Vec2{imgui.GetContentRegionAvail().x, 0}) {
+			ctx.open_popups["load_texture"] = false
+
+			ctx.add_texture.name = utils.empty_cstring(64)
+			ctx.add_texture.source = utils.empty_cstring(256)
+		}
+
+		imgui.PopStyleColor(3)
+
+		imgui.EndGroup()
+
+		imgui.End()
+	}
+}
+
 green_button :: proc(label: cstring, size: imgui.Vec2 = imgui.Vec2{0, 0}) -> bool {
 	imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_GREEN))
 	imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_GREEN_HOVERED))
@@ -91,12 +175,14 @@ texture_input :: proc(
 	ptr: ^scripts.TextureType,
 	texture_manager: ^rm.TextureManager,
 ) {
-	imgui.Image(
-		u64(utils.texture_at_index(texture_manager, (^globals.TextureType)(ptr)^).id),
-		imgui.Vec2{16, 16},
-	)
+	if i32(len(texture_manager.keys)) > i32((^globals.TextureType)(ptr)^) {
+		imgui.Image(
+			u64(utils.texture_at_index(texture_manager, (^globals.TextureType)(ptr)^).id),
+			imgui.Vec2{16, 16},
+		)
 
-	imgui.SameLine()
+		imgui.SameLine()
+	}
 
 	findable_combo_input(combo_id, label, options, (^i32)(ptr))
 }
@@ -300,24 +386,37 @@ general_information_window :: proc(
 		}
 
 		if (imgui.CollapsingHeader("Textures")) {
-			names: [^]cstring
-			raw_names := [dynamic]cstring{}
+			@(static) selected: i32 = 0
 
-			for name in ctx.manager.texture_manager.keys {
-				append(&raw_names, strings.clone_to_cstring(name))
-			}
-
-			names = raw_data(raw_names[:])
-
-			selected: i32 = 0
-
-			imgui.ListBox(
-				strings.clone_to_cstring("Loaded Textures##loaded_textures_listbox"),
+			findable_combo_input(
+				"loaded_textures_listbox",
+				"Loaded Textures",
+				ctx.manager.texture_manager.keys[:],
 				&selected,
-				names[:],
-				i32(len(ctx.manager.texture_manager.keys)),
-				8,
 			)
+
+			if len(ctx.manager.texture_manager.keys) > 0 {
+				selected_texture :=
+					ctx.manager.texture_manager.textures[ctx.manager.texture_manager.keys[selected]]
+
+				width := imgui.GetContentRegionAvail()[0]
+
+				imgui.PushID("SelectedTextureImage")
+				imgui.Image(
+					u64(selected_texture.id),
+					imgui.Vec2 {
+						width,
+						width * f32(selected_texture.height) / f32(selected_texture.width),
+					},
+				)
+
+				if imgui.BeginDragDropSource({.SourceAllowNullID}) {
+					imgui.SetDragDropPayload("ITEM", &selected, size_of(^i32))
+
+					imgui.EndDragDropSource()
+				}
+				imgui.PopID()
+			}
 
 			imgui.SeparatorText("Load Texture")
 			imgui.InputText(
@@ -346,86 +445,49 @@ general_information_window :: proc(
 	}
 
 	if ctx.open_popups["load_texture"] or_else false {
-		imgui.SetNextWindowPos(imgui.GetMainViewport().Pos)
-		imgui.SetNextWindowSize(imgui.GetMainViewport().Size)
+		load_texture_popup(ctx)
+	}
 
-		pos := imgui.GetMainViewport().Pos
-		size := imgui.GetMainViewport().Size
-
-		// imgui.SetNextWindowSize(imgui.Vec2{size.x / 2, size.y / 2})
-		imgui.SetNextWindowSizeConstraints(imgui.Vec2{0, 0}, imgui.Vec2{size.x / 3, 200})
-		imgui.SetNextWindowPos(
-			imgui.Vec2{pos.x + size.x / 3, pos.y + size.y / 3},
-			imgui.Cond.Appearing,
+	if imgui.IsMouseReleased(imgui.MouseButton.Left) {
+		mouse_pos := imgui.GetMousePos()
+		scissor := rendering.get_scissor_bounds(
+			.Development,
+			i32(ctx.window_size[0]),
+			i32(ctx.window_size[1]),
 		)
 
-		if imgui.Begin(
-			"Load Texture Modal",
-			&ctx.open_popups["load_texture"],
-			{.NoResize, .NoCollapse, .AlwaysAutoResize},
-		) {
-			if ctx.manager.preview_texture != nil {
-				preview_texture := (^rm.Texture)(ctx.manager.preview_texture)
-				texture_size_x := 128
-				texture_size_y := 128 * preview_texture.height / preview_texture.width
+		x_off, y_off, width, height := scissor[0], scissor[1], scissor[2], scissor[3]
 
-				imgui.Image(
-					u64(preview_texture.id),
-					imgui.Vec2{f32(texture_size_x), f32(texture_size_y)},
-				)
-			} else {
-				imgui.Text("No preview available")
-			}
+		x := (2 * mouse_pos.x - f32(x_off)) / 2 / globals.WINDOW_TO_SCREEN_SCALE
+		y := mouse_pos.y / globals.WINDOW_TO_SCREEN_SCALE
 
-			imgui.SameLine()
+		if !(x < 0 ||
+			   x > f32(width) / 2 / globals.WINDOW_TO_SCREEN_SCALE ||
+			   y < 0 ||
+			   y > f32(height) * globals.WINDOW_TO_SCREEN_SCALE) {
 
-			imgui.BeginGroup()
+			if !imgui.IsDragDropPayloadBeingAccepted() {
+				if payload := imgui.GetDragDropPayload(); payload != nil {
+					fmt.println("payload ", payload)
 
-			imgui.Text("Texture Details")
+					selected_texture_index := (^i32)(payload.Data)^
+					fmt.println("selected_texture_index ", selected_texture_index)
 
-			imgui.InputText("Name", ctx.add_texture.name, 64)
-			imgui.InputText("Source", ctx.add_texture.source, 256)
+					selected_texture := utils.texture_at_index(
+						&ctx.manager.texture_manager,
+						globals.TextureType(selected_texture_index),
+					)
 
-			imgui.Separator()
+					ctx.add_object.name = strings.clone_to_cstring(selected_texture.name)
+					ctx.add_object.texture = globals.TextureType(selected_texture_index)
+					ctx.add_object.position = [2]f32{f32(x), f32(y)}
+					ctx.add_object.layer = 0
 
-			if imgui.Button("Preview", imgui.Vec2{imgui.GetContentRegionAvail().x / 3 - 5, 0}) {
-				err := ctx.event_handlers["load_texture_preview"](ctx)
-				if err != nil {
-					ctx.error_message = fmt.aprintf("Failed to preview texture: %s", err)
+					fmt.println("Add object:", ctx.add_object)
+
+					ctx.event_handlers["add_object"](ctx)
 				}
 			}
-
-			imgui.SameLine()
-
-			if green_button("Load", imgui.Vec2{imgui.GetContentRegionAvail().x / 2 - 5, 0}) {
-				ctx.event_handlers["make_texture_permanent_if_preview"](ctx)
-				err := ctx.event_handlers["load_texture"](ctx)
-				if err != nil {
-					ctx.error_message = fmt.aprintf("Failed to load texture: %s", err)
-				} else {
-					ctx.add_texture.name = utils.empty_cstring(64)
-					ctx.add_texture.source = utils.empty_cstring(256)
-				}
-			}
-
-			imgui.SameLine()
-
-			imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_RED))
-			imgui.PushStyleColor(imgui.Col.ButtonHovered, COLOR_U32(COLOR_RED_HOVERED))
-			imgui.PushStyleColor(imgui.Col.ButtonActive, COLOR_U32(COLOR_RED_ACTIVE))
-
-			if imgui.Button("Cancel", imgui.Vec2{imgui.GetContentRegionAvail().x, 0}) {
-				ctx.open_popups["load_texture"] = false
-
-				ctx.add_texture.name = utils.empty_cstring(64)
-				ctx.add_texture.source = utils.empty_cstring(256)
-			}
-
-			imgui.PopStyleColor(3)
-
-			imgui.EndGroup()
-
-			imgui.End()
 		}
 	}
 
@@ -476,6 +538,16 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 
 			imgui.Text(strings.clone_to_cstring(fmt.aprintf("Name: %s", focused.name)))
 			imgui.Text(strings.clone_to_cstring(fmt.aprintf("Texture: %s", focused.texture.name)))
+			if (focused.kind != .None) {
+				imgui.Text(
+					strings.clone_to_cstring(
+						fmt.aprintf(
+							"Kind: %s",
+							rendering.render_object_kind_to_string(focused.kind),
+						),
+					),
+				)
+			}
 
 			imgui.EndGroup()
 
@@ -510,6 +582,15 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 				}
 			}
 			imgui.PopStyleColor(3)
+
+			if (focused.kind == .AtlasPreset) {
+				imgui.SeparatorText("Atlas Preset Info")
+				if (imgui.Button(
+						   "Edit Preset##edit_preset_button",
+						   {imgui.GetContentRegionAvail()[0], 0},
+					   )) {
+				}
+			}
 
 			imgui.SeparatorText("Scripts")
 			imgui.BeginGroup()

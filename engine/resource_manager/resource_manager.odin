@@ -283,23 +283,27 @@ load_texture_from_file :: proc(file: cstring, alpha: bool) -> ^Texture {
 }
 
 load_atlas :: proc(rm: ^ResourceManager, atlas: ^atl.Atlas) -> ^Texture {
-	name := atlas.header.name
+	atlas_name := atlas.header.name
 
 	texture := load_texture(
 		rm,
-		name,
+		atlas_name,
 		filepath.join({filepath.dir(string(atlas.source)), string(atlas.header.filename)}),
 		true,
 	)
 
-	append(&rm.atlas_manager.keys, name)
-	rm.atlas_manager.atlases[name] = new(atl.Atlas)
-	rm.atlas_manager.atlases[name]^ = atlas^
+	for texture_name, texture in load_textures_from_atlas(atlas) {
+		assign_texture(rm, fmt.aprintf("%s_%s", atlas_name, texture_name), texture)
+	}
+
+	append(&rm.atlas_manager.keys, atlas_name)
+	rm.atlas_manager.atlases[atlas_name] = new(atl.Atlas)
+	rm.atlas_manager.atlases[atlas_name]^ = atlas^
 
 	return texture
 }
 
-load_textures_from_atlas :: proc(atlas: atl.Atlas) -> map[string]^Texture {
+load_textures_from_atlas :: proc(atlas: ^atl.Atlas) -> map[string]^Texture {
 	textures: map[string]^Texture = make(map[string]^Texture, atlas.header.sprite_count)
 
 	tile_width := i32(atlas.header.sprite_size[0])
@@ -338,14 +342,16 @@ load_textures_from_atlas :: proc(atlas: atl.Atlas) -> map[string]^Texture {
 			}
 
 			texture: ^Texture = new(Texture)
-			texture.width = tile_width
-			texture.height = tile_height
-			texture.internal_format = gl.RGBA
-			texture.image_format = gl.RGBA
-			texture.wrap_s = gl.REPEAT
-			texture.wrap_t = gl.REPEAT
-			texture.filter_min = gl.NEAREST
-			texture.filter_max = gl.NEAREST
+			texture^ = Texture {
+				width           = tile_width,
+				height          = tile_height,
+				internal_format = gl.RGBA,
+				image_format    = gl.RGBA,
+				wrap_s          = gl.REPEAT,
+				wrap_t          = gl.REPEAT,
+				filter_min      = gl.NEAREST,
+				filter_max      = gl.NEAREST,
+			}
 
 			gl.GenTextures(1, &texture.id)
 			generate_texture(texture, tile_width, tile_height, tile_data)

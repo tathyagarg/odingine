@@ -157,6 +157,9 @@ texture_at_index :: proc(
 	texture_manager: ^rm.TextureManager,
 	index: globals.TextureType,
 ) -> ^rm.Texture {
+	if index < 0 || index >= globals.TextureType(len(texture_manager.keys)) {
+		return nil
+	}
 	return texture_manager.textures[texture_manager.keys[index]]
 }
 

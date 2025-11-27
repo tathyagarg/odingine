@@ -15,6 +15,11 @@ import imgui "../../third_party/imgui"
 
 TextureType :: globals.TextureType
 
+RenderObjectKind :: enum {
+	None,
+	AtlasPreset,
+}
+
 RenderObject :: struct {
 	name:     string,
 	sprite:   render_sprite.Sprite,
@@ -24,6 +29,7 @@ RenderObject :: struct {
 	size:     [2]f32,
 	rotation: f32,
 	scripts:  [dynamic]globals.ScriptHandle,
+	kind:     RenderObjectKind,
 }
 
 RenderLayer :: struct {
@@ -166,6 +172,17 @@ render_atlas_preset :: proc(
 			rotation = f32(0),
 			texture = rm.get_texture(manager, atlas.header.name),
 			scripts = [dynamic]globals.ScriptHandle{},
+			kind = .AtlasPreset,
 		},
 	)
+}
+
+render_object_kind_to_string :: proc(kind: RenderObjectKind) -> string {
+	switch kind {
+	case .None:
+		return "None"
+	case .AtlasPreset:
+		return "Atlas Preset"
+	}
+	return "Unknown"
 }

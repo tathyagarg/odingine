@@ -23,7 +23,7 @@ RenderObject :: rendering.RenderObject
 RendererContext :: rendering.RendererContext
 
 ENVIRONMENT :: globals.Environment.Development
-DEBUG :: true
+DEBUG :: false // true
 
 TILESET_TEXTURE_PATH :: "resources/atlases/01_grass"
 
@@ -96,6 +96,7 @@ add_object :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessa
 		size     = [2]f32{f32(texture.width), f32(texture.height)},
 		rotation = f32(0),
 		texture  = texture,
+		kind     = .None,
 	}
 
 	append(
@@ -402,6 +403,7 @@ main :: proc() {
 			size = [2]f32{f32(WINDOW_WIDTH), f32(WINDOW_HEIGHT)},
 			rotation = 0.0,
 			texture = rm.get_texture(manager, "bg"),
+			kind = .None,
 		}
 
 		atlas := atl.parse(TILESET_TEXTURE_PATH).?
