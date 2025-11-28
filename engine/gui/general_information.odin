@@ -13,6 +13,7 @@ import imgui "../../third_party/imgui"
 import "../../utils"
 import "../../utils/globals"
 import rm "../resource_manager"
+import scripts "../scripts"
 
 general_information_window :: proc(
 	window_width: u32,
@@ -39,7 +40,17 @@ general_information_window :: proc(
 			imgui.EndMenuBar()
 		}
 
-		imgui.Checkbox("Game focused?", &ctx.game_focused)
+		if imgui.Checkbox("Game focused?", &ctx.game_focused) {
+			if ctx.game_focused {
+				// run start callbacks
+				for reg_script in ctx.script_manager.registered_scripts {
+					script := (^scripts.Script)(reg_script.script)
+					if script.start_callback != nil {
+						script.start_callback(ctx, reg_script.target, nil)
+					}
+				}
+			}
+		}
 		// if imgui.Checkbox("Editing preset?", &ctx.editing_preset) {
 		// 	for &layer in (^rendering.RendererContext)(ctx.render_context).layers {
 		// 		for &obj in layer.objects {

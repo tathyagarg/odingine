@@ -53,8 +53,6 @@ show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandl
 		x := (2 * mouse_pos.x - f32(x_off)) / 2 / globals.WINDOW_TO_SCREEN_SCALE
 		y := mouse_pos.y / globals.WINDOW_TO_SCREEN_SCALE
 
-		fmt.println("Mouse released at ", mouse_pos, " transformed to ", x, ", ", y)
-
 		if !(x < 0 ||
 			   x > f32(width) / 2 / globals.WINDOW_TO_SCREEN_SCALE ||
 			   y < 0 ||
@@ -62,16 +60,11 @@ show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandl
 
 			if !imgui.IsDragDropPayloadBeingAccepted() {
 				if payload := imgui.GetDragDropPayload(); payload != nil {
-					fmt.println("payload ", payload)
-
 					payload_data := (^DraggedTexturePayload)(payload.Data)
-					fmt.println("payload_data ", payload_data)
 
 					switch payload_data.source {
 					case .FromTextureBrowser:
 						selected_texture_index := payload_data.texture_index
-
-						fmt.println("selected_texture_index ", selected_texture_index)
 
 						selected_texture := utils.texture_at_index(
 							&ctx.manager.texture_manager,
@@ -86,9 +79,16 @@ show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandl
 						}
 						ctx.add_object.layer = 0
 
-						fmt.println("Add object:", ctx.add_object)
-
-						ctx.event_handlers["add_object"](ctx)
+						err := ctx.event_handlers["add_object"](ctx)
+						if err != nil {
+							ctx.error_message = fmt.aprintf("Failed to add object: %s", err)
+							ctx.open_popups["error"] = true
+						} else {
+							ctx.add_object.name = utils.empty_cstring(64)
+							ctx.add_object.texture = 0
+							ctx.add_object.position = [2]f32{0.0, 0.0}
+							ctx.add_object.layer = 0
+						}
 					case .FromTilemapEditor:
 						if ctx.editing_preset != nil {
 							preset_object := (^rendering.RenderObject)(ctx.editing_preset)
@@ -114,6 +114,12 @@ show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandl
 								),
 							}
 
+							if relative_tile_position[0] < 0 || relative_tile_position[1] < 0 {
+								ctx.error_message = "Cannot place tile outside of preset bounds (negative coordinates) - yet"
+								ctx.open_popups["error"] = true
+								break
+							}
+
 							new_preset := preset_data
 							if (relative_tile_position[0] > preset_data.size[0] - 1) ||
 							   (relative_tile_position[1] > preset_data.size[1] - 1) {
@@ -136,13 +142,6 @@ show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandl
 									new_preset.tile_ids[i] = -1
 								}
 
-								fmt.println(
-									"Old size: ",
-									preset_data.size,
-									" New size: ",
-									new_preset.size,
-								)
-
 								preset_object.size = {
 									f32(atlas.header.sprite_size[0]) *
 									globals.TILE_SCALE *
@@ -162,15 +161,6 @@ show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandl
 								}
 							}
 
-							fmt.println("Relative tile position: ", relative_tile_position)
-							fmt.println(
-								"Setting tile at index ",
-								relative_tile_position[0] +
-								relative_tile_position[1] * new_preset.size[0],
-								" to texture index ",
-								payload_data.texture_index,
-							)
-							fmt.println("New preset size: ", new_preset.size)
 							new_preset.tile_ids[relative_tile_position[0] + relative_tile_position[1] * new_preset.size[0]] =
 								int(payload_data.texture_index)
 
@@ -213,35 +203,56 @@ mysterious_bottom_window :: proc(
 			preset_object := (^rendering.RenderObject)(ctx.editing_preset)
 			atlas := (^atl.Atlas)(preset_object.data)
 
-			i := 0
-			for name, tile in atlas.tiles {
-				tile_id := fmt.aprintf("%s_%s", atlas.header.name, name)
-				texture := ctx.manager.texture_manager.textures[tile_id]
+			cell_padding := imgui.Vec2{4, 4}
 
-				texture_size_x := 64
-				texture_size_y := 64 * texture.height / texture.width
+			imgui.PushStyleVarImVec2(imgui.StyleVar.CellPadding, cell_padding)
+			if imgui.BeginTable("tileset_table", 8, {}) {
+				i := 0
+				for name, tile in atlas.tiles {
+					tile_id := fmt.aprintf("%s_%s", atlas.header.name, name)
+					texture := ctx.manager.texture_manager.textures[tile_id]
 
-				imgui.Image(u64(texture.id), imgui.Vec2{f32(texture_size_x), f32(texture_size_y)})
-				imgui.SetItemTooltip(strings.clone_to_cstring(tile_id))
+					texture_size_x := 64
+					texture_size_y := 64 * texture.height / texture.width
 
-				if imgui.BeginDragDropSource({.SourceAllowNullID}) {
-					payload := DraggedTexturePayload {
-						texture_index = i32(tile.id),
-						source        = DraggedTextureSource.FromTilemapEditor,
+					imgui.SetNextItemWidth(f32(texture_size_x) * 2)
+					imgui.BeginGroup()
+
+					imgui.Image(
+						u64(texture.id),
+						imgui.Vec2{f32(texture_size_x), f32(texture_size_y)},
+					)
+
+					imgui.PushTextWrapPos(imgui.GetCursorPos().x + f32(texture_size_x) * 2)
+					imgui.Text(strings.clone_to_cstring(tile_id))
+					imgui.PopTextWrapPos()
+
+					imgui.EndGroup()
+					imgui.SetItemTooltip(strings.clone_to_cstring(tile_id))
+
+					if imgui.BeginDragDropSource({.SourceAllowNullID}) {
+						payload := DraggedTexturePayload {
+							texture_index = i32(tile.id),
+							source        = DraggedTextureSource.FromTilemapEditor,
+						}
+
+						imgui.SetDragDropPayload("ITEM", &payload, size_of(DraggedTexturePayload))
+
+						imgui.EndDragDropSource()
 					}
 
-					imgui.SetDragDropPayload("ITEM", &payload, size_of(DraggedTexturePayload))
 
-					imgui.EndDragDropSource()
+					imgui.TableNextColumn()
+					// if i % 8 != 7 {
+					// 	imgui.SameLine()
+					// }
+
+					// i += 1
 				}
 
-
-				if i % 8 != 7 {
-					imgui.SameLine()
-				}
-
-				i += 1
+				imgui.EndTable()
 			}
+			imgui.PopStyleVar(1)
 		}
 	}
 

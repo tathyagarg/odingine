@@ -125,7 +125,11 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 						   "Edit Preset##edit_preset_button",
 						   {imgui.GetContentRegionAvail()[0], 0},
 					   )) {
-					ctx.editing_preset = globals.RenderObjectHandle(ctx.focused_object)
+					if ctx.editing_preset != globals.RenderObjectHandle(ctx.focused_object) {
+						ctx.editing_preset = globals.RenderObjectHandle(ctx.focused_object)
+					} else {
+						ctx.editing_preset = nil
+					}
 				}
 			}
 

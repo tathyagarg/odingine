@@ -115,7 +115,7 @@ default_shared_context :: proc() -> SharedContext {
 		},
 		open_popups = map[string]bool{},
 		key_state = map[i32]bool{},
-		camera = Camera{position = [2]f32{0.0, 0.0}, zoom = 1.0},
+		camera = Camera{position = [2]f32{0, 0}, zoom = 1.0},
 	}
 }
 

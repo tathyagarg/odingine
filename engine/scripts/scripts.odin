@@ -3,15 +3,14 @@
 package scripts
 
 import "base:runtime"
+import "core:fmt"
 import "core:reflect"
 
+import rendering "../../engine/rendering"
 import "../../utils"
 import "../../utils/globals"
-import "../rendering"
 
 import "core:mem"
-
-import "vendor:glfw"
 
 TextureType :: globals.TextureType
 
@@ -34,122 +33,22 @@ TopDownMovementScriptInput :: struct {
 	back_texture:         TextureType,
 }
 
-DEFUALT_SCRIPTS :: []proc() -> Script{TopDownMovementScript}
+DEFUALT_SCRIPTS :: []proc() -> Script{TopDownMovementScript, CameraFollow}
 
-TopDownMovementScript :: proc() -> Script {
-	arguments := new(TopDownMovementScriptInput)
-	arguments.speed = 20.0
-
-	field_count := 6
-
-	argument_descriptors := make([]utils.ArgumentDescriptor, field_count)
-
-	argument_descriptors[0] = utils.ArgumentDescriptor {
-		name      = "Speed",
-		offset    = offset_of(TopDownMovementScriptInput, speed),
-		type_info = typeid_of(f32),
-	}
-
-	argument_descriptors[1] = utils.ArgumentDescriptor {
-		name      = "Limit Diagonal Speed",
-		offset    = offset_of(TopDownMovementScriptInput, limit_diagonal_speed),
-		type_info = typeid_of(bool),
-		tooltip   = "When disabled, when two movement keys of different axes are pressed (e.g., W and A), the character will move faster diagonally (two velocities add along the diagonal to give a resultant velocity sqrt(2) times the expected). Enabling this option normalizes diagonal movement speed to match single-axis movement speed.",
-	}
-
-	argument_descriptors[2] = utils.ArgumentDescriptor {
-		name      = "Front Texture",
-		offset    = offset_of(TopDownMovementScriptInput, front_texture),
-		type_info = typeid_of(TextureType),
-	}
-
-	argument_descriptors[3] = utils.ArgumentDescriptor {
-		name      = "Left Texture",
-		offset    = offset_of(TopDownMovementScriptInput, left_texture),
-		type_info = typeid_of(TextureType),
-	}
-
-	argument_descriptors[4] = utils.ArgumentDescriptor {
-		name      = "Right Texture",
-		offset    = offset_of(TopDownMovementScriptInput, right_texture),
-		type_info = typeid_of(TextureType),
-	}
-
-	argument_descriptors[5] = utils.ArgumentDescriptor {
-		name      = "Back Texture",
-		offset    = offset_of(TopDownMovementScriptInput, back_texture),
-		type_info = typeid_of(TextureType),
-	}
-
+CameraFollow :: proc() -> Script {
 	return Script {
-		name = "TopDownMovement",
-		description = "Handles basic keyboard movement controls.",
-		arguments = arguments,
-		argument_type = typeid_of(TopDownMovementScriptInput),
-		argument_descriptors = argument_descriptors,
-		start_callback = proc(
-			state: ^utils.SharedContext,
-			target: globals.RenderObjectHandle,
-			args: rawptr,
-		) {},
+		name = "CameraFollow",
+		description = "Makes the camera follow the target object.",
 		update_callback = proc(
 			state: ^utils.SharedContext,
 			target: globals.RenderObjectHandle,
 			args: rawptr,
 		) {
 			target := (^rendering.RenderObject)(target)
-			args := (^TopDownMovementScriptInput)(args)
 
-			key_state := state.key_state
-
-			if key_state[glfw.KEY_W] {
-				delta_speed := args.speed
-
-				if args.limit_diagonal_speed && (key_state[glfw.KEY_A] || key_state[glfw.KEY_D]) {
-					delta_speed *= 0.7071
-				}
-
-				target.position[1] -= delta_speed
-				target.texture = utils.texture_at_index(
-					&state.manager.texture_manager,
-					args.back_texture,
-				)
-			}
-			if key_state[glfw.KEY_S] {
-				delta_speed := args.speed
-				if args.limit_diagonal_speed && (key_state[glfw.KEY_A] || key_state[glfw.KEY_D]) {
-					delta_speed *= 0.7071
-				}
-
-				target.position[1] += delta_speed
-				target.texture = utils.texture_at_index(
-					&state.manager.texture_manager,
-					args.front_texture,
-				)
-			}
-			if key_state[glfw.KEY_A] {
-				delta_speed := args.speed
-				if args.limit_diagonal_speed && (key_state[glfw.KEY_W] || key_state[glfw.KEY_S]) {
-					delta_speed *= 0.7071
-				}
-
-				target.position[0] -= delta_speed
-				target.texture = utils.texture_at_index(
-					&state.manager.texture_manager,
-					args.left_texture,
-				)
-			}
-			if key_state[glfw.KEY_D] {
-				delta_speed := args.speed
-				if args.limit_diagonal_speed && (key_state[glfw.KEY_W] || key_state[glfw.KEY_S]) {
-					delta_speed *= 0.7071
-				}
-
-				target.position[0] += delta_speed
-				target.texture = utils.texture_at_index(
-					&state.manager.texture_manager,
-					args.right_texture,
-				)
+			state.camera.position = [2]f32 {
+				target.position[0] - globals.WINDOW_WIDTH / 2 + target.size[0] / 2,
+				target.position[1] - globals.WINDOW_HEIGHT / 2 + target.size[1] / 2,
 			}
 		},
 	}
@@ -280,16 +179,23 @@ TopDownMovementScript :: proc() -> Script {
 // }
 
 clone_script :: proc(original: ^Script) -> ^Script {
-	size := reflect.size_of_typeid(original.argument_type)
-	align := reflect.align_of_typeid(original.argument_type)
+	fmt.println("Cloning script: ", original)
 
-	// Create a new instance of the argument struct
-	new_arguments, err := mem.alloc(size, align)
-	if err != nil {
-		panic("Failed to allocate memory for script arguments.")
+	new_arguments: rawptr
+	err: mem.Allocator_Error
+
+	if len(original.argument_descriptors) != 0 {
+		size := reflect.size_of_typeid(original.argument_type)
+		align := reflect.align_of_typeid(original.argument_type)
+
+		// Create a new instance of the argument struct
+		new_arguments, err = mem.alloc(size, align)
+		if err != nil {
+			panic("Failed to allocate memory for script arguments.")
+		}
+
+		mem.copy(new_arguments, original.arguments, size)
 	}
-
-	mem.copy(new_arguments, original.arguments, size)
 
 	// Create a new Script instance with copied data
 	new_script := new(Script)

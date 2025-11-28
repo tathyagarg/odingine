@@ -463,12 +463,10 @@ main :: proc() {
 		)
     */
 
-		state.camera.position = [2]f32{100.0, 100.0}
-
 		front := rm.load_texture(manager, "front", "resources/textures/character/front.png")
-		// left := rm.load_texture(manager, "left", "resources/textures/character/left.png")
-		// right := rm.load_texture(manager, "right", "resources/textures/character/right.png")
-		// back := rm.load_texture(manager, "back", "resources/textures/character/back.png")
+		left := rm.load_texture(manager, "left", "resources/textures/character/left.png")
+		right := rm.load_texture(manager, "right", "resources/textures/character/right.png")
+		back := rm.load_texture(manager, "back", "resources/textures/character/back.png")
 
 		// player := rendering.RenderObject {
 		// 	name     = "player",
@@ -535,7 +533,9 @@ main :: proc() {
 		if (state.game_focused && ENVIRONMENT == .Development) || (ENVIRONMENT == .Production) {
 			for reg_script in state.script_manager.registered_scripts {
 				script := (^scripts.Script)(reg_script.script)
-				script.update_callback(&state, reg_script.target, script.arguments)
+				if script.update_callback != nil {
+					script.update_callback(&state, reg_script.target, script.arguments)
+				}
 			}
 		}
 
