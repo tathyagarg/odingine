@@ -122,9 +122,12 @@ add_object :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessa
 		position = position,
 		size     = [2]f32{f32(texture.width), f32(texture.height)},
 		rotation = f32(0),
+		layer    = i32(state.add_object.layer),
 		texture  = texture,
 		kind     = .None,
 	}
+
+	fmt.println("Adding object '", name, "' to layer ", state.add_object.layer)
 
 	append(
 		&(^RendererContext)(state.render_context).layers[state.add_object.layer].objects,
@@ -446,38 +449,10 @@ main :: proc() {
 			kind = .None,
 		}
 
-		/*
-		atlas := atl.parse(TILESET_TEXTURE_PATH).?
-
-		fmt.println("Loaded atlas: ", atlas)
-
-		rm.load_atlas(manager, &atlas)
-
-		rendering.render_atlas_preset(
-			&render_context,
-			manager,
-			&atlas,
-			"showcase_1",
-			0,
-			[2]f32{0.0, 0.0},
-		)
-    */
-
 		front := rm.load_texture(manager, "front", "resources/textures/character/front.png")
 		left := rm.load_texture(manager, "left", "resources/textures/character/left.png")
 		right := rm.load_texture(manager, "right", "resources/textures/character/right.png")
 		back := rm.load_texture(manager, "back", "resources/textures/character/back.png")
-
-		// player := rendering.RenderObject {
-		// 	name     = "player",
-		// 	sprite   = sprites.initialize_sprite(manager, &sprite_shader),
-		// 	position = [2]f32{100.0, 100.0},
-		// 	size     = [2]f32{32.0, 32.0},
-		// 	rotation = 0.0,
-		// 	texture  = front,
-		// }
-
-		// append(&render_context.layers[1].objects, player)
 	}
 
 

@@ -103,7 +103,7 @@ general_information_window :: proc(
 
 				findable_combo_input(
 					"layer_combo",
-					"Layer##layer_combo",
+					"Layer##preset_layer_combo",
 					slice.mapper(
 						(^rendering.RendererContext)(ctx.render_context).layers[:],
 						proc(layer: rendering.RenderLayer) -> string {
@@ -162,17 +162,17 @@ general_information_window :: proc(
 				&ctx.add_object.position,
 			)
 
-			imgui.SeparatorText("Layer##layersep_addobject")
-			for &layer, i in (^rendering.RendererContext)(ctx.render_context).layers {
-				if imgui.Selectable(
-					strings.clone_to_cstring(
-						fmt.aprintf("%s##%s_addobject", layer.name, layer.name),
-					),
-					ctx.add_object.layer == i32(i),
-				) {
-					ctx.add_object.layer = i32(i)
-				}
-			}
+			findable_combo_input(
+				"layer_combo",
+				"Layer##object_layer_combo",
+				slice.mapper(
+					(^rendering.RendererContext)(ctx.render_context).layers[:],
+					proc(layer: rendering.RenderLayer) -> string {
+						return string(layer.name)
+					},
+				),
+				&ctx.add_object.layer,
+			)
 
 			imgui.Spacing()
 

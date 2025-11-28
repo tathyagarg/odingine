@@ -65,6 +65,7 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 			)
 
 			@(static) selected_index: i32 = 0
+			selected_index = focused.layer
 
 			findable_combo_input(
 				"layer_combo",
