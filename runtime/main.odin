@@ -258,6 +258,14 @@ key_callback :: proc "c" (
 			if state.game_focused {
 				state.game_focused = false
 			} else {
+				for name, is_open in state.open_popups {
+					if is_open {
+						fmt.println("Closing popup: ", name)
+						state.open_popups[name] = false
+						return
+					}
+				}
+
 				glfw.SetWindowShouldClose(window, true)
 			}
 		}

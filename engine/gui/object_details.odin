@@ -1,6 +1,7 @@
 package gui
 
 import "core:fmt"
+import "core:slice"
 import "core:strings"
 
 import "vendor:glfw"
@@ -63,6 +64,39 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 				&focused.rotation,
 			)
 
+			@(static) selected_index: i32 = 0
+
+			findable_combo_input(
+				"layer_combo",
+				"Layer##layer_combo",
+				slice.mapper(
+					(^rendering.RendererContext)(ctx.render_context).layers[:],
+					proc(layer: rendering.RenderLayer) -> string {
+						return string(layer.name)
+					},
+				),
+				&selected_index,
+				ctx,
+				proc(selected_index: ^i32, ctx: ^utils.SharedContext) {
+					focused := (^rendering.RenderObject)(ctx.focused_object)
+
+					for &layer in (^rendering.RendererContext)(ctx.render_context).layers[:] {
+						for obj, i in layer.objects {
+							if obj.name == focused.name {
+								ordered_remove(&layer.objects, i)
+								target_layer := &(^rendering.RendererContext)(ctx.render_context).layers[selected_index^]
+								append(&target_layer.objects, focused^)
+								fmt.println(
+									"Layers now: ",
+									(^rendering.RendererContext)(ctx.render_context).layers,
+								)
+								return
+							}
+						}
+					}
+				},
+			)
+
 			imgui.Spacing()
 
 			imgui.PushStyleColor(imgui.Col.Button, COLOR_U32(COLOR_RED))
@@ -76,7 +110,7 @@ object_details_window :: proc(window_width: u32, window_height: u32, window: glf
 				err := ctx.event_handlers["delete_object"](ctx)
 				if err != nil {
 					ctx.error_message = fmt.aprintf("Failed to delete object: %s", err)
-					imgui.OpenPopup("Error")
+					ctx.open_popups["error"] = true
 				} else {
 					ctx.focused_object = nil
 				}

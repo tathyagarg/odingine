@@ -117,6 +117,8 @@ findable_combo_input :: proc(
 	label: cstring,
 	options: []string,
 	selected_index: ^i32,
+	ctx: ^utils.SharedContext = nil,
+	update_callback: proc(selected_index: ^i32, ctx: ^utils.SharedContext) = nil,
 ) {
 	imgui.PushID(combo_id)
 
@@ -140,6 +142,9 @@ findable_combo_input :: proc(
 					selected_index^ == i32(i),
 				) {
 					selected_index^ = i32(i)
+					if update_callback != nil {
+						update_callback(selected_index, ctx)
+					}
 				}
 				imgui.PopID()
 			}

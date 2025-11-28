@@ -108,7 +108,7 @@ general_information_window :: proc(
 					err := ctx.event_handlers["render_atlas_preset"](ctx)
 					if err != nil {
 						ctx.error_message = fmt.aprintf("Failed to load atlas preset: %s", err)
-						imgui.OpenPopup("Error")
+						ctx.open_popups["error"] = true
 					}
 				}
 			}
@@ -125,7 +125,7 @@ general_information_window :: proc(
 				err := ctx.event_handlers["load_atlas"](ctx)
 				if err != nil {
 					ctx.error_message = fmt.aprintf("Failed to load atlas: %s", err)
-					imgui.OpenPopup("Error")
+					ctx.open_popups["error"] = true
 				}
 			}
 		}
@@ -172,7 +172,7 @@ general_information_window :: proc(
 				err := ctx.event_handlers["add_object"](ctx)
 				if err != nil {
 					ctx.error_message = fmt.aprintf("Failed to add object: %s", err)
-					imgui.OpenPopup("Error")
+					ctx.open_popups["error"] = true
 				}
 			}
 
@@ -253,7 +253,7 @@ general_information_window :: proc(
 				err := ctx.event_handlers["load_texture"](ctx)
 				if err != nil {
 					ctx.error_message = fmt.aprintf("Failed to load texture: %s", err)
-					imgui.OpenPopup("Error")
+					ctx.open_popups["error"] = true
 				} else {
 					ctx.add_texture.name = utils.empty_cstring(64)
 					ctx.add_texture.source = utils.empty_cstring(256)
@@ -266,7 +266,8 @@ general_information_window :: proc(
 		load_texture_popup(ctx)
 	}
 
-	if imgui.BeginPopupModal("Error", nil, {.AlwaysAutoResize}) {
+	if ctx.open_popups["error"] or_else false {
+		imgui.Begin("Error")
 		imgui.TextWrapped(strings.clone_to_cstring(ctx.error_message))
 		imgui.Separator()
 
@@ -278,9 +279,9 @@ general_information_window :: proc(
 
 		if green_button("OK", imgui.Vec2{size, 0}) {
 			ctx.error_message = ""
-			imgui.CloseCurrentPopup()
+			ctx.open_popups["error"] = false
 		}
-		imgui.EndPopup()
+		imgui.End()
 	}
 
 	imgui.End()
