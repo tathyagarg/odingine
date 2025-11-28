@@ -211,6 +211,9 @@ initialize_preset :: proc(
 	for tile_y in 0 ..< preset_h {
 		for tile_x in 0 ..< preset_w {
 			tile := preset.tile_ids[tile_x + tile_y * preset_w]
+			if tile == -1 {
+				continue
+			}
 
 			uv := get_uv(atlas, tile)
 			px, py := f32(tile_x) * tile_w, f32(tile_y) * tile_h

@@ -12,6 +12,7 @@ import rendering "../../engine/rendering"
 import imgui "../../third_party/imgui"
 import "../../utils"
 import "../../utils/globals"
+import sprite "../rendering/sprite"
 import rm "../resource_manager"
 
 COLOR_GREEN :: imgui.Vec4{0.2, 0.6, 0.2, 1.0}
@@ -92,19 +93,95 @@ show_gui :: proc(window_width: u32, window_height: u32, window: glfw.WindowHandl
 						if ctx.editing_preset != nil {
 							preset_object := (^rendering.RenderObject)(ctx.editing_preset)
 							atlas := (^atl.Atlas)(preset_object.data)
+							preset_data: atl.Preset = atlas.presets.presets[preset_object.name]
 
-							relative_tile_position := [2]f32 {
-								math.floor(
-									(f32(x) - preset_object.position[0] + ctx.camera.position[0]) /
-									(f32(atlas.header.sprite_size[0]) * globals.TILE_SCALE),
+							relative_tile_position := [2]int {
+								int(
+									math.floor(
+										(f32(x) -
+											preset_object.position[0] +
+											ctx.camera.position[0]) /
+										(f32(atlas.header.sprite_size[0]) * globals.TILE_SCALE),
+									),
 								),
-								math.floor(
-									(f32(y) - preset_object.position[1] + ctx.camera.position[1]) /
-									(f32(atlas.header.sprite_size[1]) * globals.TILE_SCALE),
+								int(
+									math.floor(
+										(f32(y) -
+											preset_object.position[1] +
+											ctx.camera.position[1]) /
+										(f32(atlas.header.sprite_size[1]) * globals.TILE_SCALE),
+									),
 								),
 							}
 
-							fmt.println("relative_tile_position ", relative_tile_position)
+							new_preset := preset_data
+							if (relative_tile_position[0] > preset_data.size[0] - 1) ||
+							   (relative_tile_position[1] > preset_data.size[1] - 1) {
+								new_width := math.max(
+									preset_data.size[0],
+									relative_tile_position[0] + 1,
+								)
+
+								new_height := math.max(
+									preset_data.size[1],
+									relative_tile_position[1] + 1,
+								)
+
+								new_preset = atl.Preset {
+									size     = [2]int{new_width, new_height},
+									tile_ids = make([]int, new_width * new_height),
+								}
+
+								for i: int = 0; i < new_width * new_height; i += 1 {
+									new_preset.tile_ids[i] = -1
+								}
+
+								fmt.println(
+									"Old size: ",
+									preset_data.size,
+									" New size: ",
+									new_preset.size,
+								)
+
+								preset_object.size = {
+									f32(atlas.header.sprite_size[0]) *
+									globals.TILE_SCALE *
+									f32(new_preset.size[0]),
+									f32(atlas.header.sprite_size[1]) *
+									globals.TILE_SCALE *
+									f32(new_preset.size[1]),
+								}
+							}
+
+							for y: int = 0; y < preset_data.size[1]; y += 1 {
+								for x: int = 0; x < preset_data.size[0]; x += 1 {
+									old_index := x + y * preset_data.size[0]
+									new_index := x + y * new_preset.size[0]
+									new_preset.tile_ids[new_index] =
+										preset_data.tile_ids[old_index]
+								}
+							}
+
+							fmt.println("Relative tile position: ", relative_tile_position)
+							fmt.println(
+								"Setting tile at index ",
+								relative_tile_position[0] +
+								relative_tile_position[1] * new_preset.size[0],
+								" to texture index ",
+								payload_data.texture_index,
+							)
+							fmt.println("New preset size: ", new_preset.size)
+							new_preset.tile_ids[relative_tile_position[0] + relative_tile_position[1] * new_preset.size[0]] =
+								int(payload_data.texture_index)
+
+							atlas.presets.presets[preset_object.name] = new_preset
+							ctx.event_handlers["save_atlas"](ctx)
+							preset_object.sprite = sprite.initialize_preset(
+								ctx.manager,
+								&preset_object.sprite.shader,
+								&new_preset,
+								atlas,
+							)
 						}
 					}
 				}
@@ -139,7 +216,6 @@ mysterious_bottom_window :: proc(
 			i := 0
 			for name, tile in atlas.tiles {
 				tile_id := fmt.aprintf("%s_%s", atlas.header.name, name)
-				context.user_ptr = &tile_id
 				texture := ctx.manager.texture_manager.textures[tile_id]
 
 				texture_size_x := 64
@@ -149,19 +225,8 @@ mysterious_bottom_window :: proc(
 				imgui.SetItemTooltip(strings.clone_to_cstring(tile_id))
 
 				if imgui.BeginDragDropSource({.SourceAllowNullID}) {
-					texture_index, found := slice.linear_search_proc(
-						ctx.manager.texture_manager.keys[:],
-						proc(i: string) -> bool {
-							return i == (^string)(context.user_ptr)^
-						},
-					)
-
-					if !found {
-						// what
-					}
-
 					payload := DraggedTexturePayload {
-						texture_index = i32(texture_index),
+						texture_index = i32(tile.id),
 						source        = DraggedTextureSource.FromTilemapEditor,
 					}
 

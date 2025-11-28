@@ -48,6 +48,8 @@ general_information_window :: proc(
 		// 	}
 		// }
 
+		imgui.InputFloat2("Camera Position", &ctx.camera.position)
+
 		if (imgui.CollapsingHeader("Texture Atlases")) {
 			findable_combo_input(
 				"atlas_listbox",
