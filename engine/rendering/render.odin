@@ -6,6 +6,7 @@ import "core:strings"
 
 import gl "vendor:OpenGL"
 
+import utils "../../utils"
 import "../../utils/globals"
 import atl "../atlas"
 import render_sprite "../rendering/sprite"
@@ -30,6 +31,7 @@ RenderObject :: struct {
 	rotation: f32,
 	scripts:  [dynamic]globals.ScriptHandle,
 	kind:     RenderObjectKind,
+	data:     rawptr,
 }
 
 RenderLayer :: struct {
@@ -71,7 +73,7 @@ initialize_renderer :: proc(
 	}
 }
 
-render :: proc(ctx: ^RendererContext) {
+render :: proc(ctx: ^RendererContext, camera: utils.Camera) {
 	gl.Clear(gl.COLOR_BUFFER_BIT)
 	switch bg in ctx.background {
 	case imgui.Vec4:
@@ -84,6 +86,8 @@ render :: proc(ctx: ^RendererContext) {
 			[2]f32{0.0, 0.0},
 			[2]f32{f32(globals.WINDOW_WIDTH), f32(globals.WINDOW_HEIGHT)},
 			0.0,
+			camera.position,
+			camera.zoom,
 		)
 	}
 
@@ -100,6 +104,8 @@ render :: proc(ctx: ^RendererContext) {
 				object.position,
 				object.size,
 				-object.rotation * globals.DEGREES_TO_RADIANS,
+				camera.position,
+				camera.zoom,
 			)
 		}
 	}
@@ -173,6 +179,7 @@ render_atlas_preset :: proc(
 			texture = rm.get_texture(manager, atlas.header.name),
 			scripts = [dynamic]globals.ScriptHandle{},
 			kind = .AtlasPreset,
+			data = rawptr(atlas),
 		},
 	)
 }

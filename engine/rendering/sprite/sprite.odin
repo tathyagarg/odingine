@@ -5,6 +5,8 @@ import "core:math/linalg"
 
 import gl "vendor:OpenGL"
 
+import utils "../../../utils"
+import globals "../../../utils/globals"
 import atl "../../atlas"
 import mat_math "../../math/matrix"
 import rm "../../resource_manager"
@@ -218,8 +220,6 @@ initialize_preset :: proc(
 		}
 	}
 
-	fmt.println("verts: ", verts)
-
 	for vert, i in verts {
 		if i % 4 == 0 {
 			verts[i] *= 1 / (tile_w * f32(preset_w))
@@ -229,8 +229,6 @@ initialize_preset :: proc(
 			verts[i] *= 1 / (tile_h * f32(preset_h))
 		}
 	}
-
-	fmt.println("verts: ", verts)
 
 	sprite.vertex_count = i32(index) / FLOATS_PER_VERTEX
 
@@ -260,6 +258,8 @@ draw_sprite :: proc(
 	position: [2]f32,
 	size: [2]f32,
 	rotation: f32,
+	camera_position: [2]f32,
+	zoom: f32,
 ) {
 	if texture == nil {
 		return
@@ -276,7 +276,21 @@ draw_sprite :: proc(
 
 	model = mat_math.scale(model, [3]f32{size[0], size[1], 1.0})
 
+	view := linalg.MATRIX4F32_IDENTITY
+	view = mat_math.translate(view, [3]f32{-camera_position[0], -camera_position[1], -0.5})
+
+	projection := utils.orthographic_projection_matrix(
+		0,
+		globals.WINDOW_WIDTH * zoom,
+		globals.WINDOW_HEIGHT * zoom,
+		0,
+		-1.0,
+		1.0,
+	)
+
+	rm.set_matrix4("projection", &projection, &sprite.shader)
 	rm.set_matrix4("model", &model, &sprite.shader)
+	rm.set_matrix4("view", &view, &sprite.shader)
 	rm.set_integer("hovered", 1 if sprite.hovered else 0, &sprite.shader)
 
 	gl.ActiveTexture(gl.TEXTURE0)

@@ -3,6 +3,8 @@ package atlas
 import "core:fmt"
 import "core:os"
 import "core:path/filepath"
+import "core:slice"
+import "core:sort"
 import "core:strconv"
 import "core:strings"
 
@@ -467,7 +469,22 @@ save_atlas :: proc(atlas: ^Atlas) {
 
 	content = strings.concatenate({content, "tiles:\n"})
 
-	for name, tile in atlas.tiles {
+	tiles, err2 := slice.map_entries(atlas.tiles)
+	if err2 != nil {
+		fmt.println("Error retrieving tile values: ", err2)
+		return
+	}
+
+	sort.quick_sort_proc(
+		tiles,
+		proc(a: slice.Map_Entry(string, Tile), b: slice.Map_Entry(string, Tile)) -> int {
+			return sort.compare_ints(a.value.id, b.value.id)
+		},
+	)
+
+	for entry in tiles {
+		name, tile := entry.key, entry.value
+
 		content = strings.concatenate(
 			{
 				content,

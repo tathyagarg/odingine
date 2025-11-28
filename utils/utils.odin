@@ -6,6 +6,7 @@ import "core:strings"
 
 import "vendor:glfw"
 
+import atl "../engine/atlas"
 import rm "../engine/resource_manager"
 import "./globals"
 
@@ -51,9 +52,15 @@ AddTexture :: struct {
 	source: cstring,
 }
 
+Camera :: struct {
+	position: [2]f32,
+	zoom:     f32,
+}
+
+// ts holding the entire codebase together
 SharedContext :: struct {
 	game_focused:   bool,
-	editing_preset: bool,
+	editing_preset: globals.RenderObjectHandle,
 	window_size:    [2]i32,
 	event_handlers: map[string]proc(state: ^SharedContext, args: ..any) -> ErrorMessage,
 	manager:        ^rm.ResourceManager,
@@ -67,6 +74,7 @@ SharedContext :: struct {
 	script_manager: ScriptManager,
 	open_popups:    map[string]bool,
 	key_state:      map[i32]bool,
+	camera:         Camera,
 }
 
 ErrorMessage :: enum {
@@ -107,6 +115,7 @@ default_shared_context :: proc() -> SharedContext {
 		},
 		open_popups = map[string]bool{},
 		key_state = map[i32]bool{},
+		camera = Camera{position = [2]f32{0.0, 0.0}, zoom = 1.0},
 	}
 }
 

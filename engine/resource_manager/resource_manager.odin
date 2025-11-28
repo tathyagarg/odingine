@@ -163,6 +163,10 @@ set_matrix4 :: proc(name: string, m: ^matrix[4, 4]f32, shader: ^Shader) {
 	gl.UniformMatrix4fv(location, 1, gl.FALSE, raw_data(m))
 }
 
+set_vector2 :: proc(name: string, v: [2]f32, shader: ^Shader) {
+	gl.Uniform2f(gl.GetUniformLocation(shader.id, strings.clone_to_cstring(name)), v[0], v[1])
+}
+
 set_vector3 :: proc(name: string, v: [3]f32, shader: ^Shader) {
 	gl.Uniform3f(
 		gl.GetUniformLocation(shader.id, strings.clone_to_cstring(name)),
@@ -204,7 +208,6 @@ generate_texture :: proc(texture: ^Texture, width: i32, height: i32, data: [^]u8
 
 assign_texture :: proc(rm: ^ResourceManager, name: string, texture: ^Texture) {
 	if _, exists := rm.texture_manager.textures[name]; !exists {
-		fmt.println("Assigning texture: ", name)
 		append(&rm.texture_manager.keys, name)
 	}
 	rm.texture_manager.textures[name] = texture

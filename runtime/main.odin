@@ -2,6 +2,8 @@ package main
 
 import "base:runtime"
 import "core:fmt"
+import "core:math"
+import "core:math/linalg"
 import "core:strings"
 
 import imgui "../third_party/imgui"
@@ -12,6 +14,7 @@ import "vendor:glfw"
 
 import atl "../engine/atlas"
 import gui "../engine/gui"
+import mat_math "../engine/math/matrix"
 import rendering "../engine/rendering"
 import sprites "../engine/rendering/sprite"
 import rm "../engine/resource_manager"
@@ -23,7 +26,7 @@ RenderObject :: rendering.RenderObject
 RendererContext :: rendering.RendererContext
 
 ENVIRONMENT :: globals.Environment.Development
-DEBUG :: false // true
+DEBUG :: true
 
 TILESET_TEXTURE_PATH :: "resources/atlases/01_grass"
 
@@ -32,6 +35,30 @@ BASE_SPRITE_FRAGMENT_SHADER :: #load("../resources/shaders/02_sprite/sprite.frag
 
 BASE_LINE_VERTEX_SHADER :: #load("../resources/shaders/03_line/line.vert")
 BASE_LINE_FRAGMENT_SHADER :: #load("../resources/shaders/03_line/line.frag")
+
+generate_grid_vao :: proc(tile_size: f32) -> (u32, u32) {
+	grid_vao, grid_vbo: u32
+	grid_verts, grid_vert_count := utils.make_grid(50, tile_size)
+
+	gl.GenVertexArrays(1, &grid_vao)
+	gl.GenBuffers(1, &grid_vbo)
+
+	gl.BindVertexArray(grid_vao)
+	gl.BindBuffer(gl.ARRAY_BUFFER, grid_vbo)
+
+	gl.BufferData(
+		gl.ARRAY_BUFFER,
+		len(grid_verts) * size_of(f32),
+		raw_data(grid_verts),
+		gl.STATIC_DRAW,
+	)
+	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, 2 * size_of(f32), uintptr(0))
+	gl.EnableVertexAttribArray(0)
+
+	gl.BindVertexArray(0)
+
+	return grid_vao, u32(grid_vert_count)
+}
 
 save_atlas :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessage {
 	atlases := state.manager.atlas_manager.atlases
@@ -268,47 +295,52 @@ mouse_callback :: proc "c" (window: glfw.WindowHandle, button: i32, action: i32,
 				x := (2 * raw_x - f64(x_off)) / 2 / globals.WINDOW_TO_SCREEN_SCALE
 				y := raw_y / globals.WINDOW_TO_SCREEN_SCALE
 
-				if x < 0 ||
-				   x > f64(width) / 2 / globals.WINDOW_TO_SCREEN_SCALE ||
-				   y < 0 ||
-				   y > f64(height) * globals.WINDOW_TO_SCREEN_SCALE {
-					return
-				}
+				if !(x < 0 ||
+					   x > f64(width) / 2 / globals.WINDOW_TO_SCREEN_SCALE ||
+					   y < 0 ||
+					   y > f64(height) * globals.WINDOW_TO_SCREEN_SCALE) {
+					state.focused_object = nil
 
-				ctx := (^RendererContext)(state.render_context)
+					ctx := (^RendererContext)(state.render_context)
 
-				layer_count := len(ctx.layers)
+					layer_count := len(ctx.layers)
 
-				for i in 0 ..< layer_count {
-					layer := &ctx.layers[layer_count - 1 - i]
+					click_pos_x := x + f64(state.camera.position[0])
+					click_pos_y := y + f64(state.camera.position[1])
 
-					for &object in layer.objects {
-						if object.texture == nil {
-							continue
-						}
+					for i in 0 ..< layer_count {
+						layer := &ctx.layers[layer_count - 1 - i]
 
-						fmt.println("Click at x:", x, " y:", y)
-						fmt.println(
-							"Checking object ",
-							object.name,
-							" at position ",
-							object.position,
-							" with size ",
-							object.size,
-						)
+						for &object in layer.objects {
+							if object.texture == nil {
+								continue
+							}
 
-						if x >= f64(object.position[0]) &&
-						   x <= f64(object.position[0] + object.size[0]) &&
-						   y >= f64(object.position[1]) &&
-						   y <= f64(object.position[1] + object.size[1]) {
+							fmt.println("Click at x:", x, " y:", y)
+							fmt.println(
+								"Checking object ",
+								object.name,
+								" at position ",
+								object.position,
+								" with size ",
+								object.size,
+							)
 
-							state.focused_object = globals.RenderObjectHandle(&object)
-							return
+							if click_pos_x >= f64(object.position[0]) &&
+							   click_pos_x <= f64(object.position[0] + object.size[0]) &&
+							   click_pos_y >= f64(object.position[1]) &&
+							   click_pos_y <= f64(object.position[1] + object.size[1]) {
+
+								state.focused_object = globals.RenderObjectHandle(&object)
+								return
+							}
 						}
 					}
-				}
 
-				state.focused_object = nil
+					if (state.editing_preset != nil) {
+						// meow
+					}
+				}
 			}
 		}
 	}
@@ -406,6 +438,7 @@ main :: proc() {
 			kind = .None,
 		}
 
+		/*
 		atlas := atl.parse(TILESET_TEXTURE_PATH).?
 
 		fmt.println("Loaded atlas: ", atlas)
@@ -420,8 +453,11 @@ main :: proc() {
 			0,
 			[2]f32{0.0, 0.0},
 		)
+    */
 
-		// front := rm.load_texture(manager, "front", "resources/textures/character/front.png")
+		state.camera.position = [2]f32{100.0, 100.0}
+
+		front := rm.load_texture(manager, "front", "resources/textures/character/front.png")
 		// left := rm.load_texture(manager, "left", "resources/textures/character/left.png")
 		// right := rm.load_texture(manager, "right", "resources/textures/character/right.png")
 		// back := rm.load_texture(manager, "back", "resources/textures/character/back.png")
@@ -473,27 +509,8 @@ main :: proc() {
 	glfw.SetKeyCallback(window, key_callback)
 	glfw.SetMouseButtonCallback(window, mouse_callback)
 
-	grid_vao, grid_vbo: u32
-	grid_verts, grid_vert_count := utils.make_grid(50, 32 * TILE_SCALE)
-
-	fmt.println("Grid vert count: ", grid_vert_count, " verts: ", grid_verts)
-
-	gl.GenVertexArrays(1, &grid_vao)
-	gl.GenBuffers(1, &grid_vbo)
-
-	gl.BindVertexArray(grid_vao)
-	gl.BindBuffer(gl.ARRAY_BUFFER, grid_vbo)
-
-	gl.BufferData(
-		gl.ARRAY_BUFFER,
-		len(grid_verts) * size_of(f32),
-		raw_data(grid_verts),
-		gl.STATIC_DRAW,
-	)
-	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, 2 * size_of(f32), uintptr(0))
-	gl.EnableVertexAttribArray(0)
-
-	gl.BindVertexArray(0)
+	grid_vaos: map[f32]u32 = map[f32]u32{}
+	grid_vert_counts: map[f32]u32 = map[f32]u32{}
 
 	imgui.SetNextWindowPos(
 		imgui.Vec2{f32(0), f32(0)},
@@ -505,7 +522,7 @@ main :: proc() {
 		gl.Viewport(x, y, width, height)
 		gl.Scissor(x, y, width, height)
 
-		rendering.render(&render_context)
+		rendering.render(&render_context, state.camera)
 
 		if (state.game_focused && ENVIRONMENT == .Development) || (ENVIRONMENT == .Production) {
 			for reg_script in state.script_manager.registered_scripts {
@@ -514,11 +531,43 @@ main :: proc() {
 			}
 		}
 
-		if (state.editing_preset) {
+		if (state.editing_preset != nil) {
+			preset_object := (^rendering.RenderObject)(state.editing_preset)
+			atlas := (^atl.Atlas)(preset_object.data)
+
+			tile_w := f32(atlas.header.sprite_size[0]) * TILE_SCALE
+			tile_h := f32(atlas.header.sprite_size[1]) * TILE_SCALE
+
 			shader := rm.get_shader(manager, "line")
 			rm.use_shader(&shader)
 
+			model := linalg.MATRIX4F32_IDENTITY
+
+			model = mat_math.translate(
+				model,
+				[3]f32 {
+					math.mod(preset_object.position[0], tile_w) - tile_w,
+					math.mod(preset_object.position[1], tile_h) - tile_h,
+					0.0,
+				},
+			)
+
+			view := mat_math.translate(
+				linalg.MATRIX4F32_IDENTITY,
+				[3]f32{-state.camera.position[0], -state.camera.position[1], 0.0},
+			)
+
 			rm.set_matrix4("projection", &projection, &shader)
+			rm.set_matrix4("view", &view, &shader)
+			rm.set_matrix4("model", &model, &shader)
+
+			if tile_w not_in grid_vaos {
+				fmt.println("Generating grid VAO for tile size: ", tile_w)
+				grid_vaos[tile_w], grid_vert_counts[tile_w] = generate_grid_vao(tile_w)
+			}
+
+			grid_vao := grid_vaos[tile_w]
+			grid_vert_count := grid_vert_counts[tile_w]
 
 			gl.BindVertexArray(grid_vao)
 			gl.DrawArrays(gl.LINES, 0, i32(grid_vert_count))
