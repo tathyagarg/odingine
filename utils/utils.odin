@@ -84,6 +84,7 @@ ErrorMessage :: enum {
 	FailedToLoadTexture,
 	FailedToAddObject,
 	EmptyNameOrTextureSource,
+	FailedToSaveProject,
 }
 
 default_shared_context :: proc() -> SharedContext {

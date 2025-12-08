@@ -436,6 +436,16 @@ parse :: proc(path: string) -> Maybe(Atlas) {
 	return atlas
 }
 
+save_atlas_to_path :: proc(atlas: ^Atlas, path: string) {
+	if atlas == nil {
+		fmt.println("Cannot save a nil atlas")
+		return
+	}
+
+	atlas.source = strings.clone_to_cstring(path)
+	save_atlas(atlas)
+}
+
 save_atlas :: proc(atlas: ^Atlas) {
 	if atlas == nil {
 		fmt.println("Cannot save a nil atlas")
@@ -443,7 +453,7 @@ save_atlas :: proc(atlas: ^Atlas) {
 	}
 
 	fmt.println("Saving atlas to: ", string(atlas.source))
-	file, err := os.open(string(atlas.source), os.O_RDWR)
+	file, err := os.open(string(atlas.source), os.O_RDWR | os.O_CREATE)
 	if err != nil {
 		fmt.println("Error creating atlas file: ", err)
 		return

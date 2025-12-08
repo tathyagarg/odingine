@@ -51,13 +51,14 @@ general_information_window :: proc(
 				}
 			}
 		}
-		// if imgui.Checkbox("Editing preset?", &ctx.editing_preset) {
-		// 	for &layer in (^rendering.RendererContext)(ctx.render_context).layers {
-		// 		for &obj in layer.objects {
-		// 			obj.sprite.hovered = ctx.editing_preset
-		// 		}
-		// 	}
-		// }
+
+		if imgui.Button("Save", {imgui.GetContentRegionAvail()[0], 0}) {
+			err := ctx.event_handlers["save_project"](ctx)
+			if err != nil {
+				ctx.error_message = fmt.aprintf("Failed to save project: %s", err)
+				ctx.open_popups["error"] = true
+			}
+		}
 
 		imgui.InputFloat2("Camera Position", &ctx.camera.position)
 
@@ -184,6 +185,11 @@ general_information_window :: proc(
 				if err != nil {
 					ctx.error_message = fmt.aprintf("Failed to add object: %s", err)
 					ctx.open_popups["error"] = true
+				} else {
+					ctx.add_object.name = utils.empty_cstring(64)
+					ctx.add_object.texture = 0
+					ctx.add_object.position = [2]f32{0.0, 0.0}
+					ctx.add_object.layer = 0
 				}
 			}
 

@@ -33,6 +33,8 @@ Shader :: struct {
 
 Texture :: struct {
 	id:              u32,
+	path:            string,
+	uvs:             [4]f32,
 	name:            string,
 	width:           i32,
 	height:          i32,
@@ -257,10 +259,14 @@ get_texture :: proc(rm: ^ResourceManager, name: string) -> ^Texture {
 
 load_texture_from_file :: proc(file: cstring, alpha: bool) -> ^Texture {
 	texture: ^Texture = new(Texture)
-	texture.wrap_s = gl.REPEAT
-	texture.wrap_t = gl.REPEAT
-	texture.filter_min = gl.NEAREST
-	texture.filter_max = gl.NEAREST
+	texture^ = Texture {
+		path       = string(file),
+		uvs        = [4]f32{0.0, 0.0, 1.0, 1.0},
+		wrap_s     = gl.REPEAT,
+		wrap_t     = gl.REPEAT,
+		filter_min = gl.NEAREST,
+		filter_max = gl.NEAREST,
+	}
 
 	gl.GenTextures(1, &texture.id)
 
@@ -346,6 +352,13 @@ load_textures_from_atlas :: proc(atlas: ^atl.Atlas) -> map[string]^Texture {
 
 			texture: ^Texture = new(Texture)
 			texture^ = Texture {
+				path            = path,
+				uvs             = [4]f32 {
+					f32(x * tile_width) / f32(width),
+					f32(y * tile_height) / f32(height),
+					f32((x + 1) * tile_width) / f32(width),
+					f32((y + 1) * tile_height) / f32(height),
+				},
 				width           = tile_width,
 				height          = tile_height,
 				internal_format = gl.RGBA,

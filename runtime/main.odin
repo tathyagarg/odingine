@@ -4,6 +4,9 @@ import "base:runtime"
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
+import "core:os"
+import "core:os/os2"
+import "core:path/filepath"
 import "core:strings"
 
 import imgui "../third_party/imgui"
@@ -244,6 +247,58 @@ make_texture_permanent_if_preview :: proc(
 	return nil
 }
 
+save_project :: proc(state: ^utils.SharedContext, args: ..any) -> utils.ErrorMessage {
+	if !os.exists("saves") {
+		err := os.make_directory("saves")
+		if err != nil {
+			fmt.println("Failed to create saves directory: ", err)
+			return .FailedToSaveProject
+		}
+	}
+
+	if !os.exists("saves/atlases") {
+		err := os.make_directory("saves/atlases")
+		if err != nil {
+			fmt.println("Failed to create atlases save directory: ", err)
+			return .FailedToSaveProject
+		}
+	}
+
+	atlases := state.manager.atlas_manager.atlases
+	for name, atlas_ptr in atlases {
+		fname := fmt.aprintf("%s.atlas", name)
+
+		save_path := filepath.join({"saves/atlases", name})
+		fmt.println("Saving atlas ", name, " to ", save_path)
+		atl.save_atlas_to_path(atlas_ptr, save_path)
+	}
+
+	// copy textures
+	textures := state.manager.texture_manager.textures
+	texture_copy: for name, texture_ptr in textures {
+		for atlas_name in atlases {
+			if strings.starts_with(name, atlas_name) && name != atlas_name {
+				continue texture_copy
+			}
+		}
+
+		dest_dir := filepath.join({"saves/textures"})
+		if !os.exists(dest_dir) {
+			err := os.make_directory(dest_dir)
+			if err != nil {
+				fmt.println("Failed to create textures save directory: ", err)
+				return .FailedToSaveProject
+			}
+		}
+		dest_path := filepath.join({dest_dir, fmt.aprintf("%s.png", name)})
+
+		os2.copy_file(dest_path, string(texture_ptr.path))
+		fmt.println("Copying texture ", name, " to ", dest_path)
+	}
+
+	return nil
+}
+
 key_callback :: proc "c" (
 	window: glfw.WindowHandle,
 	key: i32,
@@ -465,6 +520,7 @@ main :: proc() {
 	state.event_handlers["unload_texture_preview"] = unload_texture_preview
 	state.event_handlers["make_texture_permanent_if_preview"] = make_texture_permanent_if_preview
 	state.event_handlers["render_atlas_preset"] = render_atlas_preset
+	state.event_handlers["save_project"] = save_project
 
 	glfw.SetWindowUserPointer(window, &state)
 
