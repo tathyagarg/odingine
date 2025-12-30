@@ -1,6 +1,7 @@
 package main
 
 import "base:runtime"
+import "core:encoding/json"
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
@@ -29,7 +30,7 @@ RenderObject :: rendering.RenderObject
 RendererContext :: rendering.RendererContext
 
 ENVIRONMENT :: globals.Environment.Development
-DEBUG :: true
+DEBUG :: false
 
 TILESET_TEXTURE_PATH :: "resources/atlases/01_grass"
 

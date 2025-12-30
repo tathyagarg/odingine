@@ -6,7 +6,6 @@ import "core:strings"
 
 import "vendor:glfw"
 
-import atl "../engine/atlas"
 import rm "../engine/resource_manager"
 import "./globals"
 
